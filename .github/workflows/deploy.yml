@@ -2,6 +2,11 @@ name: Deploys to npm registry
 
 on: [push]
 
+defaults:
+  run:
+    shell: bash
+    working-directory: ci
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -10,6 +15,5 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: 15.5.0
-      - run: cd ci
       - run: yarn
       - run: yarn test
