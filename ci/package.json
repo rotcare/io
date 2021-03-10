@@ -3,6 +3,7 @@
     "name": "ci",
     "workspaces": [".."],
     "scripts": {
-        "test": "mocha -r ts-eager/register ../src/**/*_test.ts"
+        "test": "mocha -r ts-eager/register ../src/**/*_test.ts",
+        "deploy": "yarn test && ts-eager deploy.ts"
     }
 }

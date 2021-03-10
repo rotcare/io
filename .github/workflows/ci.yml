@@ -1,9 +1,6 @@
-name: Deploy
+name: Continuous Integration
 
-on: 
-  push:
-    branches:
-      - experimental
+on: [push]
 
 defaults:
   run:
@@ -19,4 +16,4 @@ jobs:
         with:
           node-version: 15.5.0
       - run: yarn
-      - run: yarn deploy
+      - run: yarn test
