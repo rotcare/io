@@ -8,7 +8,7 @@ export function useTrace(realm: symbol) {
         }
         const message = String.raw(
             template,
-            ...subsititutions.map((s) => (typeof s === 'string' ? s : new String(s))),
+            ...subsititutions.map((s) => (typeof s === 'string' ? s : String(s))),
         );
         if (executionTraces) {
             executionTraces.push(message);
