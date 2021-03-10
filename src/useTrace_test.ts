@@ -1,7 +1,7 @@
 import { useTrace } from './useTrace';
-import * as assert from 'assert';
+import { strict } from 'assert';
 
-const trace = useTrace(Symbol.for('test'));
+const trace = useTrace(Symbol());
 const old = { ...useTrace };
 const output: string[] = [];
 
@@ -19,7 +19,7 @@ describe('useTrace', () => {
     });
     it('trace outside execute', () => {
         trace`hello`;
-        assert.deepStrictEqual(output, ['hello']);
+        strict.deepEqual(output, ['hello']);
     });
     it('trace obj', () => {
         trace`hello ${{
@@ -27,19 +27,19 @@ describe('useTrace', () => {
                 return 'some';
             },
         }}`;
-        assert.deepStrictEqual(output, ['hello [object some]']);
+        strict.deepEqual(output, ['hello [object some]']);
     });
     it('trace inside execute', () => {
         trace.execute('some job', () => {
             trace`hello`;
             trace`world`;
         });
-        assert.deepStrictEqual(output, ['some job', ['hello', 'world']]);
+        strict.deepEqual(output, ['some job', ['hello', 'world']]);
     });
     it('trace.execute nested', () => {
         trace.execute('some job', () => {
             trace.execute('more job', () => {});
         });
-        assert.deepStrictEqual(output, ['some job', ['>>> more job', '<<< more job']]);
+        strict.deepEqual(output, ['some job', ['>>> more job', '<<< more job']]);
     });
 });

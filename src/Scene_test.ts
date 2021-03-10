@@ -1,4 +1,4 @@
-import * as assert from 'assert';
+import { strict } from 'assert';
 import { Gateway } from './Archetype/Gateway';
 import { Atom, AtomReader, newTrace, Scene, SimpleAtom } from './Scene';
 
@@ -40,6 +40,6 @@ describe('Scene', () => {
             // 其产生的 I/O 都会触发 onAtomRead
             return await scene.useServices<typeof SomeGateway>().doSomething();
         }
-        assert.deepStrictEqual(atoms, [someTable]);
+        strict.deepEqual(atoms, [someTable]);
     });
 });

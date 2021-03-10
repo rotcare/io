@@ -1,10 +1,13 @@
 import { uuid } from './uuid';
 import { useTrace } from './useTrace';
 
+
 // Scene 生命周期的 trace 日志
-const trace = useTrace(Symbol.for('Scene'));
-// 依赖追踪的 trace 日志
-const reactive_trace = useTrace(Symbol.for('reactive'));
+export const REALM_SCENE = Symbol();
+const trace = useTrace(REALM_SCENE);
+// 依赖追踪的 trace 日志，这个日志频率非常高
+export const REALM_REACTIVE = Symbol();
+const reactive_trace = useTrace(REALM_REACTIVE);
 
 // STATUS_INIT -> STATUS_EXECUTING -> STATUS_FINISHED
 const STATUS_INIT = 0;
@@ -262,7 +265,7 @@ export class Scene {
      * @param props 列的初始值
      * @returns 刚插入的数据，其上有 update/delete 的方法
      */
-    public insert<T>(table: Table<T>, props: Partial<ConstructorType<T>>): Promise<T> {
+    public insert<T>(table: Table<T>, props: Omit<FieldsOf<T>, 'id'>): Promise<T> {
         this.assertExecuting();
         return this.io.database.insert(this, table, props) as any;
     }
@@ -319,7 +322,7 @@ export class Scene {
         return undefined;
     }
     get [Symbol.toStringTag]() {
-        return `[S]${this.span.traceId} ${this.span.traceOp}`;
+        return `{S traceId=${this.span.traceId} traceOp=${this.span.traceOp}}`;
     }
 }
 
@@ -337,10 +340,8 @@ type AllowedNames<Base, Type> = FlagExcludedType<Base, Type>[keyof Base];
 type OmitType<Base, Type> = Pick<Base, AllowedNames<Base, Type>>;
 
 // 4 Exclude the Function type to only get properties
-// @internal
-export type ConstructorType<T> = Omit<OmitType<T, Function>, 'scene'>;
+export type FieldsOf<T> = OmitType<T, Function>;
 
-// @internal
 export type MethodsOf<T> = {
     [P in keyof T]: T[P] extends (...a: any) => any ? P : never;
 }[keyof T];
