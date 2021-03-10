@@ -1,0 +1,8 @@
+{
+    "private": true,
+    "name": "ci",
+    "workspaces": [".."],
+    "scripts": {
+        "test": "mocha -r ts-eager/register ../src/**/*_test.ts"
+    }
+}

@@ -1,0 +1,14 @@
+name: Deploys to npm registry
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 15.5.0
+      - run: yarn
+      - run: yarn test
