@@ -1,7 +1,8 @@
 import { ActiveRecord } from "../Archetype/ActiveRecord";
-import { newTrace, Scene } from "../Scene";
+import { Scene } from "../Scene";
 import { InMemDatabase } from "./InMemDatabase";
 import { strict } from 'assert';
+import { newTrace } from "../newTrace";
 
 describe('InMemDatabase', () => {
     it('增删改查', async () => {

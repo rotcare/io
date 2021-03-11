@@ -1,9 +1,9 @@
 let executionTraces: string[] | undefined;
 
 // 高频率的日志追踪，无法用常规的日志框架来实现
-export function useTrace(realm: symbol) {
+export function useLog(realm: symbol) {
     const t = function (template: TemplateStringsArray, ...subsititutions: any[]) {
-        if (!useTrace.shouldTrace(realm)) {
+        if (!useLog.shouldLog(realm)) {
             return;
         }
         const message = String.raw(
@@ -13,11 +13,11 @@ export function useTrace(realm: symbol) {
         if (executionTraces) {
             executionTraces.push(message);
         } else {
-            useTrace.output(message);
+            useLog.output(message);
         }
     };
     t.execute = <T>(message: string, cb: () => T): T  => {
-        if (!useTrace.shouldTrace(realm)) {
+        if (!useLog.shouldLog(realm)) {
             return cb();
         }
         if (executionTraces) {
@@ -32,7 +32,7 @@ export function useTrace(realm: symbol) {
         try {
             return cb();
         } finally {
-            useTrace.output(message, executionTraces);
+            useLog.output(message, executionTraces);
             executionTraces = undefined;
         }
     }
@@ -44,8 +44,8 @@ export function useTrace(realm: symbol) {
     return t;
 }
 
-useTrace.shouldTrace = (realm: symbol) => {
+useLog.shouldLog = (realm: symbol) => {
     return false;
 };
 
-useTrace.output = console.debug;
+useLog.output = console.debug;

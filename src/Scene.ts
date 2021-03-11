@@ -1,18 +1,11 @@
-import { uuid } from './uuid';
-import { useTrace } from './useTrace';
-
+import { useLog } from './useLog';
 
 // Scene 生命周期的 trace 日志
 export const REALM_SCENE = Symbol();
-const trace = useTrace(REALM_SCENE);
+const trace = useLog(REALM_SCENE);
 // 依赖追踪的 trace 日志，这个日志频率非常高
 export const REALM_REACTIVE = Symbol();
-const reactive_trace = useTrace(REALM_REACTIVE);
-
-// STATUS_INIT -> STATUS_EXECUTING -> STATUS_FINISHED
-const STATUS_INIT = 0;
-const STATUS_EXECUTING = 1;
-const STATUS_FINISHED = 2;
+const reactive_trace = useLog(REALM_REACTIVE);
 
 // 分布式追踪包括三层 trace -> span -> scene
 // 一个 trace 会有多个进程被多次执行，每次执行是一个 span
@@ -32,18 +25,6 @@ export interface Span {
     props: Record<string, any>;
     onError?: (e: any) => void;
     onSceneExecuting?: (scene: Scene) => Promise<any>;
-}
-
-// 一般是在前端进程产生一个全新的 trace
-export function newTrace(traceOp: string): Span {
-    // 分布式追踪的 traceId 是在前端浏览器这里分配的，一直会往后传递
-    return {
-        traceId: uuid(),
-        spanId: uuid(),
-        traceOp,
-        baggage: {},
-        props: {},
-    };
 }
 
 // 界面渲染的过程中要需要读取数据，也就是使用Atom
@@ -141,6 +122,11 @@ export interface IoConf {
     database: Database;
 }
 
+// STATUS_INIT -> STATUS_EXECUTING -> STATUS_FINISHED
+const STATUS_INIT = 0;
+const STATUS_EXECUTING = 1;
+const STATUS_FINISHED = 2;
+
 // 每个异步执行流程（async function）会创建一个独立的 scene，用来跟踪异步操作与I/O的订阅关系
 // 后端 handle 一个 http 请求，后端不开启订阅
 // 前端计算每个 future 的值（读操作），捕捉订阅关系
@@ -148,13 +134,22 @@ export interface IoConf {
 export class Scene {
     // 当前进程跑的是哪个 project 的代码，RPC 的时候默认会透传该 project
     public static currentProject = '';
+    // 默认使用 project 名字做为域名进行服务发现，端口在代码写死
+    // 如果需要额外重定向，需要全局注册该回调
+    // 其他外部服务也可以当成 project 来对待，比如 project=redis, port=6379
+    public static serviceDiscover = (options: {
+        project: string;
+        port: number;
+    }): { host: string; port: number } => {
+        return { host: options.project, port: options.port }
+    };
     // 默认情况下，scene 是不会触发变更通知的
     // 在创建了 scene 之后，要配置 scene 执行过程中如果发现 atom 被修改了该怎么办
     // 1. 透传给其他 scene（比如通过 RPC 传递）
     // 2. 触发 atom 变更通知，从而触发 subscriber 刷新
     // 3. 只读的操作禁止修改数据，应该抛异常
     // 选择哪种方式要看这个 scene 的创建者所要执行任务的意图
-    public notifyChange = (atom: Atom) => {};
+    public onAtomChanged = (atom: Atom) => {};
 
     // 当前正在执行的 reader，遇到的 atom 要订阅上它们
     // 一个 scene 的执行过程中可能执行了多个嵌套的 async function

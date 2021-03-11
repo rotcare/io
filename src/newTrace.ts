@@ -1,3 +1,27 @@
+import type { Span } from "./Scene";
+
+// 一般是在前端进程产生一个全新的 trace
+export function newTrace(traceOp: string): Span {
+  // 分布式追踪的 traceId 是在前端浏览器这里分配的，一直会往后传递
+  return {
+      traceId: uuid(),
+      spanId: uuid(),
+      traceOp,
+      baggage: {},
+      props: {},
+  };
+}
+
+export function newSpan(parentSpan: Span) {
+  return {
+    traceId: parentSpan.traceId,
+    spanId: uuid(),
+    parentSpanId: parentSpan.spanId,
+    traceOp: parentSpan.traceOp,
+    baggage: parentSpan.baggage
+  }
+}
+
 let crypto_ = typeof global !== 'undefined' && ((global as any).crypto || (global as any).msCrypto); // for IE 11
 let rng: any;
 if (crypto_ && crypto_.getRandomValues) {
