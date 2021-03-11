@@ -141,7 +141,7 @@ export class Scene {
         project: string;
         port: number;
     }): { host: string; port: number } => {
-        return { host: options.project, port: options.port }
+        return { host: options.project, port: options.port };
     };
     // 默认情况下，scene 是不会触发变更通知的
     // 在创建了 scene 之后，要配置 scene 执行过程中如果发现 atom 被修改了该怎么办
@@ -178,6 +178,10 @@ export class Scene {
     ): Promise<ReturnType<T>> {
         this.executing = (async () => {
             this.status = STATUS_EXECUTING;
+            const isReader = theThis && theThis.onAtomRead;
+            if (isReader) {
+                this.activeReaders.add(theThis);
+            }
             try {
                 // 如果是 async 函数，trace.execute 只会覆盖其执行的第一个 step
                 // 后续的 async 执行不会包裹在 trace.execute 内
@@ -185,6 +189,9 @@ export class Scene {
                     task.call(theThis, this, ...args),
                 );
             } finally {
+                if (isReader) {
+                    this.activeReaders.delete(theThis);
+                }
                 // 无论是否抛出异常，执行都算结束了
                 // 即便要重试，也应该创建一个新的 scene
                 this.executing = undefined;

@@ -2,7 +2,8 @@ import { BatchExecutor } from '../BatchExecutor';
 import { Span, Scene, ServiceProtocol, SimpleAtom } from '../../Scene';
 import { isJobError, JobResult } from './HttpRpc';
 import { newSpan } from '../../newTrace';
-import fetch from 'node-fetch';
+
+declare const fetch: any;
 
 // 前端通过互联网以 http 协议调用 api gateway 后面的 serverless 函数
 // 1. 需要把多个前端组件发的请求给聚合成一批 jobs 批量执行

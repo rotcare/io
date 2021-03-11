@@ -1,7 +1,4 @@
-export interface Job {
-    service: string;
-    args: any[];
-}
+export type Job = any[];
 
 export type JobResult = JobSuccess | JobError;
 
