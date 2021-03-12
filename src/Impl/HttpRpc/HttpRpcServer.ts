@@ -73,7 +73,7 @@ export class HttpRpcServer {
     ) {
         const { index, job, span, resp, staticMethod } = options;
         const scene = new Scene(span, this.options.ioConf);
-        const subscribed: string[] = [];
+        const read: string[] = [];
         const changed: string[] = [];
         scene.onAtomChanged = (atom) => {
             if (atom.tableName && !changed.includes(atom.tableName)) {
@@ -82,15 +82,15 @@ export class HttpRpcServer {
         };
         const reader: AtomReader = {
             onAtomRead(atom: Atom) {
-                if (atom.tableName && !subscribed.includes(atom.tableName)) {
-                    subscribed.push(atom.tableName);
+                if (atom.tableName && !read.includes(atom.tableName)) {
+                    read.push(atom.tableName);
                 }
             },
         };
         await scene.execute(reader, async () => {
             try {
-                const result = await staticMethod(...options.job);
-                resp.write(JSON.stringify({ indices: [index], data: result, subscribed, changed }) + '\n');
+                const result = await staticMethod(scene, ...options.job);
+                resp.write(JSON.stringify({ indices: [index], data: result, read, changed }) + '\n');
             } catch (e) {
                 console.error(`failed to handle: ${JSON.stringify(job)}\n`, e);
                 resp.write(JSON.stringify({ indices: [index], error: new String(e) }) + '\n');

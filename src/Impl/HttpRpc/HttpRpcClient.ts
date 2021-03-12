@@ -102,9 +102,18 @@ async function batchExecuteSameSpanJobs(
         body: JSON.stringify(jobs.map((job) => job.args)),
     });
     // TODO: 实用 body.getReader() 实现及时响应
-    const lines = (await resp.text()).split('\n');
+    const lines = (await resp.text()).split('\n') as string[];
     for (const line of lines) {
-        const result = JSON.parse(line) as JobResult;
+        if (!line || !line.trim()) {
+            continue;
+        }
+        let result: JobResult;
+        try {
+            result = JSON.parse(line) as JobResult
+        } catch(e) {
+            console.error(`found invalid respones: ${line}`)
+            continue;
+        }
         for (const index of result.indices) {
             const job = jobs[index];
             if (isJobError(result)) {

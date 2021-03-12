@@ -294,13 +294,15 @@ export class Scene {
     ): Promise<T[]>;
     public query(arg1: any, ...remainingArgs: any[]) {
         this.assertExecuting();
-        if (arg1.query) {
-            return arg1.query(this, ...remainingArgs);
+        if (!arg1.IS_ENTITY) {
+            return arg1(this, ...remainingArgs);
         }
-        if (arg1.IS_ENTITY) {
-            return this.io.database.query(this, arg1, remainingArgs[0]);
+        const table = arg1;
+        const customized = Reflect.get(table, `query${table.tableName[0].toUpperCase()}${table.tableName.substr(1)}`);
+        if (customized) {
+            return customized(this, ...remainingArgs);
         }
-        return arg1(this, ...remainingArgs);
+        return this.io.database.query(this, table, remainingArgs[0]);
     }
     // 和 query 一样，但是要求返回数组有且仅有一个元素
     public async load<T>(table: Table<T>, props: Partial<T>): Promise<T> {
@@ -320,8 +322,9 @@ export class Scene {
     // 当没有任何条件的时候，假设指定表是单例的
     public async get<T>(table: Table<T>, id?: any): Promise<T> {
         this.assertExecuting();
-        if ((table as any).get) {
-            return (table as any).get(this, id);
+        const customized = Reflect.get(table, `get${table.tableName[0].toUpperCase()}${table.tableName.substr(1)}`);
+        if (customized) {
+            return customized(this, id);
         }
         return await this.load(table, id ? { id } : ({} as any));
     }
