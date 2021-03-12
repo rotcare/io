@@ -80,6 +80,13 @@ export class SimpleAtom {
     }
 }
 
+export interface EntitySpi {
+    onLoad(options: {
+        update: () => Promise<void>;
+        delete: () => Promise<void>;
+    }): void;
+}
+
 // ActiveRecord class 就实现了 Table 接口
 export interface Table<T = any> extends Atom {
     new (...args: any[]): T;
@@ -100,9 +107,6 @@ export interface Database {
     executeSql(scene: Scene, sql: string, sqlVars: Record<string, any>): Promise<any[]>;
 }
 
-// RPC 是标记在下面两种类型上的静态方法
-export type ActiveRecordClass<T = any> = Table<T> & { IS_ACTIVE_RECORD: true };
-export type GatewayClass<T = any> = { new (...args: any[]): T } & { IS_GATEWAY: true };
 // 提供远程方法调用的具体实现
 export interface ServiceProtocol {
     /**
@@ -241,7 +245,7 @@ export class Scene {
      * @param project 要调用的目标 project，如果不传默认调用当前 project 对应的后端代码
      * @returns RPC 调用的 proxy
      */
-    public useServices<T extends GatewayClass>(
+    public useServices<T>(
         project?: string,
     ): {
         [P in MethodsOf<T>]: (...a: Parameters<OmitFirstArg<T[P]>>) => ReturnType<T[P]>;
@@ -267,7 +271,7 @@ export class Scene {
      * @param props 列的初始值
      * @returns 刚插入的数据，其上有 update/delete 的方法
      */
-    public insert<T>(table: Table<T>, props: Omit<FieldsOf<T>, 'id'>): Promise<T> {
+    public insert<T>(table: Table<T>, props: Partial<FieldsOf<T>>): Promise<T> {
         this.assertExecuting();
         return this.io.database.insert(this, table, props) as any;
     }
@@ -290,7 +294,10 @@ export class Scene {
     ): Promise<T[]>;
     public query(arg1: any, ...remainingArgs: any[]) {
         this.assertExecuting();
-        if (arg1.IS_ACTIVE_RECORD) {
+        if (arg1.query) {
+            return arg1.query(this, ...remainingArgs);
+        }
+        if (arg1.IS_ENTITY) {
             return this.io.database.query(this, arg1, remainingArgs[0]);
         }
         return arg1(this, ...remainingArgs);
@@ -300,7 +307,7 @@ export class Scene {
         this.assertExecuting();
         const records = await this.query(table, props);
         if (records.length === 0) {
-            const msg = `${table.tableName} is empty, can not find ${JSON.stringify(props)}`;
+            const msg = `${table.tableName} finid 0 match of ${JSON.stringify(props)}`;
             throw new Error(msg);
         }
         if (records.length !== 1) {
@@ -313,6 +320,9 @@ export class Scene {
     // 当没有任何条件的时候，假设指定表是单例的
     public async get<T>(table: Table<T>, id?: any): Promise<T> {
         this.assertExecuting();
+        if ((table as any).get) {
+            return (table as any).get(this, id);
+        }
         return await this.load(table, id ? { id } : ({} as any));
     }
     // sleep 延迟的毫秒数 (一秒等于1000毫秒)
@@ -342,8 +352,8 @@ type AllowedNames<Base, Type> = FlagExcludedType<Base, Type>[keyof Base];
 type OmitType<Base, Type> = Pick<Base, AllowedNames<Base, Type>>;
 
 // 4 Exclude the Function type to only get properties
-export type FieldsOf<T> = OmitType<T, Function>;
+type FieldsOf<T> = OmitType<T, Function>;
 
-export type MethodsOf<T> = {
+type MethodsOf<T> = {
     [P in keyof T]: T[P] extends (...a: any) => any ? P : never;
 }[keyof T];

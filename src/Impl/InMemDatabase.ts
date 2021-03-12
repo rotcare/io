@@ -1,13 +1,15 @@
-import { Database, Scene, Table } from '../Scene';
+import { Database, EntitySpi, Scene, Table } from '../Scene';
 
 // 用内存模拟数据库
 export class InMemDatabase implements Database {
     private tables: Map<Table, Map<string, Record<string, any>>> = new Map();
 
     public async insert(scene: Scene, table: Table, props: Record<string, any>): Promise<any> {
-        const obj = new table(scene);
-        obj.update = this.update.bind(this, obj, scene);
-        obj.delete = this.delete.bind(this, obj, scene);
+        const obj: EntitySpi = new table(scene);
+        obj.onLoad({
+            update: this.update.bind(this, obj, scene),
+            delete: this.delete.bind(this, obj, scene),
+        });
         const id = nextId();
         Object.assign(obj, { ...props, id });
         const records = this.getRecords(table);
@@ -29,22 +31,24 @@ export class InMemDatabase implements Database {
         const objs = [];
         for (const record of records.values()) {
             if (isMatch(record)) {
-                const obj = Object.assign(new table(scene), record);
-                obj.update = this.update.bind(this, obj);
-                obj.delete = this.delete.bind(this, obj);
+                const obj: EntitySpi = Object.assign(new table(scene), record);
+                obj.onLoad({
+                    update: this.update.bind(this, obj, scene),
+                    delete: this.delete.bind(this, obj, scene),
+                });
                 objs.push(obj);
             }
         }
         return objs;
     }
-    private update(obj: any, scene: Scene) {
+    private async update(obj: any, scene: Scene) {
         const records = this.getRecords(obj.constructor);
         records.set(obj.id, JSON.parse(JSON.stringify(obj)));
         scene.onAtomChanged(obj.constructor);
     }
-    private delete(obj: any, scene: Scene) {
+    private async delete(obj: any, scene: Scene) {
         const records = this.getRecords(obj.constructor);
-        records.delete(obj.id)
+        records.delete(obj.id);
         scene.onAtomChanged(obj.constructor);
     }
     public executeSql(scene: Scene, sql: string, sqlVars: Record<string, any>): Promise<any[]> {
