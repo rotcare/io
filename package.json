@@ -1,9 +1,9 @@
 {
-    "name": "@stableinf/io",
+    "name": "@rotcare/io",
     "version": "0.1.0",
     "repository": {
         "type": "git",
-        "url": "https://github.com/stableinf/io.git"
+        "url": "https://github.com/rotcare/io.git"
     },
     "main": "src/index.ts",
     "dependencies": {
