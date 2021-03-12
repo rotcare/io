@@ -3,9 +3,13 @@ import { newTrace } from '../../newTrace';
 import { Scene } from '../../Scene';
 import { HttpRpcClient } from './HttpRpcClient';
 import { strict } from 'assert';
+import fetch from 'node-fetch';
 
 describe('HttpRpcClient', () => {
     let server: http.Server;
+    before(() => {
+        (global as any).fetch = fetch;
+    })
     afterEach(() => {
         server.close();
     });
@@ -20,7 +24,7 @@ describe('HttpRpcClient', () => {
                 req.on('end', () => {
                     url = req.url!;
                     resp.end(
-                        JSON.stringify({ indices: [0], data: 'hello', read: [], changed: [] }),
+                        JSON.stringify({ index: 0, data: 'hello', read: [], changed: [] }),
                     );
                 });
             })
@@ -47,7 +51,7 @@ describe('HttpRpcClient', () => {
                 req.on('end', () => {
                     url = req.url!;
                     resp.end(
-                        JSON.stringify({ indices: [0], error: 'wtf' }),
+                        JSON.stringify({ index: 0, error: 'wtf' }),
                     );
                 });
             })

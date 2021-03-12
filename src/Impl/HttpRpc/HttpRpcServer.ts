@@ -13,13 +13,17 @@ export class HttpRpcServer {
     public get handler() {
         return async (req: IncomingMessage, resp: ServerResponse) => {
             try {
-                const staticMethodPromise = this.staticMethod();
+                const staticMethod = this.staticMethod().catch((e) => {
+                    console.error(e);
+                    return () => {
+                        throw e;
+                    }
+                });
                 let reqBody = '';
                 req.on('data', (chunk) => {
                     reqBody += chunk;
                 });
                 await new Promise((resolve) => req.on('end', resolve));
-                const staticMethod = await staticMethodPromise;
                 resp.writeHead(200, {
                     'Content-Type': 'text/plain; charset=utf-8',
                     'Transfer-Encoding': 'chunked',
@@ -64,7 +68,7 @@ export class HttpRpcServer {
     
     private async execute(
         options: {
-            staticMethod: Function,
+            staticMethod: Promise<Function>,
             index: number,
             job: Job,
             span: Span,
@@ -89,11 +93,11 @@ export class HttpRpcServer {
         };
         await scene.execute(reader, async () => {
             try {
-                const result = await staticMethod(scene, ...options.job);
-                resp.write(JSON.stringify({ indices: [index], data: result, read, changed }) + '\n');
+                const data = await (await staticMethod)(scene, ...options.job);
+                resp.write(JSON.stringify({ index, data, read, changed }) + '\n');
             } catch (e) {
                 console.error(`failed to handle: ${JSON.stringify(job)}\n`, e);
-                resp.write(JSON.stringify({ indices: [index], error: new String(e) }) + '\n');
+                resp.write(JSON.stringify({ index, error: new String(e) }) + '\n');
             }
         });
     }

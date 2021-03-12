@@ -7,13 +7,13 @@ export function isJobError(jobResult: JobResult): jobResult is JobError {
 }
 
 export interface JobSuccess {
-    indices: number[];
+    index: number;
     data: any;
     read: string[];
     changed: string[];
 }
 
 export interface JobError {
-    indices: number[];
+    index: number;
     error: any;
 }

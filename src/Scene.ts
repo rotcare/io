@@ -179,7 +179,7 @@ export class Scene {
         theThis: any,
         task: T,
         ...args: Parameters<OmitFirstArg<T>>
-    ): Promise<ReturnType<T>> {
+    ): ReturnType<T> {
         this.executing = (async () => {
             this.status = STATUS_EXECUTING;
             const isReader = theThis && theThis.onAtomRead;

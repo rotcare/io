@@ -114,19 +114,21 @@ async function batchExecuteSameSpanJobs(
             console.error(`found invalid respones: ${line}`)
             continue;
         }
-        for (const index of result.indices) {
-            const job = jobs[index];
-            if (isJobError(result)) {
-                job.reject(new Error(result.error));
-            } else {
-                for (const tableName of result.read) {
-                    job.scene.onAtomRead(remoteTable(tableName));
-                }
-                for (const tableName of result.changed) {
-                    job.scene.onAtomChanged(remoteTable(tableName));
-                }
-                job.resolve(result.data);
+        const job = jobs[result.index];
+        if (!job) {
+            console.error(`referencing a non existing job: ${line}`);
+            continue;
+        }
+        if (isJobError(result)) {
+            job.reject(new Error(result.error));
+        } else {
+            for (const tableName of result.read) {
+                job.scene.onAtomRead(remoteTable(tableName));
             }
+            for (const tableName of result.changed) {
+                job.scene.onAtomChanged(remoteTable(tableName));
+            }
+            job.resolve(result.data);
         }
     }
 }
