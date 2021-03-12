@@ -12,7 +12,7 @@ export class InMemDatabase implements Database {
         Object.assign(obj, { ...props, id });
         const records = this.getRecords(table);
         records.set(id, JSON.parse(JSON.stringify(obj)));
-        scene.notifyChange(table);
+        scene.onAtomChanged(table);
         return obj;
     }
     public async query(scene: Scene, table: Table, criteria: Record<string, any>): Promise<any[]> {
@@ -40,12 +40,12 @@ export class InMemDatabase implements Database {
     private update(obj: any, scene: Scene) {
         const records = this.getRecords(obj.constructor);
         records.set(obj.id, JSON.parse(JSON.stringify(obj)));
-        scene.notifyChange(obj.constructor);
+        scene.onAtomChanged(obj.constructor);
     }
     private delete(obj: any, scene: Scene) {
         const records = this.getRecords(obj.constructor);
         records.delete(obj.id)
-        scene.notifyChange(obj.constructor);
+        scene.onAtomChanged(obj.constructor);
     }
     public executeSql(scene: Scene, sql: string, sqlVars: Record<string, any>): Promise<any[]> {
         throw new Error('unsupported');

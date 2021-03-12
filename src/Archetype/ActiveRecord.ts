@@ -26,9 +26,9 @@ export class ActiveRecord {
     }
 
     private static atom(): Table {
-        let atom = (this as any)['atom'];
+        let atom = (this as any)['_atom'];
         if (!atom) {
-            (this as any)['atom'] = atom = new TableAtom(this.tableName);
+            (this as any)['_atom'] = atom = new TableAtom(this.tableName);
         }
         return atom;
     }
