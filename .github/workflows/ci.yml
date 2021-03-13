@@ -2,11 +2,6 @@ name: Continuous Integration
 
 on: [push]
 
-defaults:
-  run:
-    shell: bash
-    working-directory: ci
-
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -15,7 +10,5 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: 15.5.0
-      - run: yarn
-      - run: cd .. && rm -rf node_modules && ln -s ci/node_modules
-      - run: cd .. && yarn tsc
-      - run: yarn mocha -r ts-eager/register "../src/**/*_test.ts"
+      - run: cd ci && yarn
+      - run: yarn ci

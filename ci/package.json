@@ -1,5 +1,8 @@
 {
     "private": true,
     "name": "ci",
-    "workspaces": [".."]
+    "workspaces": [".."],
+    "scripts": {
+        "postinstall": "cd .. && rm -rf node_modules && ln -s ci/node_modules"
+    }
 }
