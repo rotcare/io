@@ -1,7 +1,7 @@
 import { BatchExecutor } from '../BatchExecutor';
-import { Span, Scene, ServiceProtocol, SimpleAtom } from '../../Scene';
+import { Scene, ServiceProtocol, SimpleAtom } from '../../Scene';
 import { isJobError, JobResult } from './HttpRpc';
-import { newSpan, reportEvent } from '../../tracing';
+import { newSpan, reportEvent, Span } from '../../tracing';
 
 declare const fetch: any;
 

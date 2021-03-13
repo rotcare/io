@@ -1,4 +1,5 @@
-import { AtomSubscriber, EntitySpi, SimpleAtom, Span, Table } from "../Scene";
+import { AtomSubscriber, EntitySpi, SimpleAtom, Table } from "../Scene";
+import { Span } from "../tracing";
 
 // 数据库表
 export class Entity implements EntitySpi {
