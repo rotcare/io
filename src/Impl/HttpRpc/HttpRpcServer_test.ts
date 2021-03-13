@@ -5,6 +5,7 @@ import { HttpRpcClient } from './HttpRpcClient';
 import { strict } from 'assert';
 import { HttpRpcServer } from './HttpRpcServer';
 import fetch from 'node-fetch';
+import { batchExecute, JobBatch } from './HttpRpc';
 
 describe('HttpRpcServer', () => {
     let httpServer: http.Server;
@@ -23,12 +24,7 @@ describe('HttpRpcServer', () => {
     });
     it('成功执行', async () => {
         const rpcServer = new HttpRpcServer(
-            {
-                ioConf: {
-                    database: undefined as any,
-                    serviceProtocol: new HttpRpcClient(),
-                },
-            },
+            {} as any,
             async () => {
                 return {
                     TestServer: {
@@ -53,12 +49,7 @@ describe('HttpRpcServer', () => {
     });
     it('加载代码抛异常', async () => {
         const rpcServer = new HttpRpcServer(
-            {
-                ioConf: {
-                    database: undefined as any,
-                    serviceProtocol: new HttpRpcClient(),
-                },
-            },
+            {} as any,
             async () => {
                 throw new Error('wtf');
             },
@@ -79,12 +70,7 @@ describe('HttpRpcServer', () => {
     });
     it('执行代码抛异常', async () => {
         const rpcServer = new HttpRpcServer(
-            {
-                ioConf: {
-                    database: undefined as any,
-                    serviceProtocol: new HttpRpcClient(),
-                },
-            },
+            {} as any,
             async () => {
                 return {
                     TestServer: {
@@ -108,5 +94,40 @@ describe('HttpRpcServer', () => {
         await strict.rejects(result, (e: any) => {
             return e.message.includes('wtf');
         });
+    });
+    it('批量执行', async () => {
+        const rpcServer = new HttpRpcServer(
+            {} as any,
+            async () => {
+                const batchExecute: batchExecute = (jobs) => {
+                    const batch: JobBatch = { jobs, async execute() {
+                        for(const job of jobs) {
+                            job.result = 'hello';
+                        }
+                    }}
+                    return [batch];
+                };
+                return {
+                    TestServer: {
+                        testMethod: {
+                            batchExecute,
+                        },
+                    },
+                };
+            },
+            'TestServer',
+            'testMethod',
+        );
+        httpServer = http.createServer(rpcServer.handler).listen(3000);
+        const scene = new Scene(newTrace('test'), {
+            database: undefined as any,
+            serviceProtocol: new HttpRpcClient(),
+        });
+        const result = await scene.execute(undefined, async () => {
+            const gateway = scene.useServices('localhost') as any;
+            const promises = [gateway.testMethod(), gateway.testMethod()];
+            return await Promise.all(promises);
+        });
+        strict.deepEqual(result, ['hello', 'hello']);
     });
 });

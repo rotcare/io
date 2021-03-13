@@ -1,4 +1,14 @@
-export type Job = any[];
+import { Scene } from "../../Scene";
+
+export interface Job {
+    index: number;
+    args: any[];
+    // 给 batchExecute 传返回值用
+    result?: any;
+};
+
+export type JobBatch = { jobs: Job[], execute: (scene: Scene) => Promise<void> };
+export type batchExecute = (jobs: Job[]) => JobBatch[];
 
 export type JobResult = JobSuccess | JobError;
 

@@ -1,7 +1,7 @@
 import type { ServerResponse, IncomingMessage } from 'http';
-import { newTrace, reportEvent, Span } from '../../tracing';
+import { newTrace, Span } from '../../tracing';
 import { Atom, AtomReader, IoConf, Scene } from '../../Scene';
-import { Job } from './HttpRpc';
+import { JobBatch, Job } from './HttpRpc';
 
 export class HttpRpcServer {
     constructor(
@@ -9,36 +9,41 @@ export class HttpRpcServer {
         private readonly moduleProvider: () => Promise<any>,
         private readonly className: string,
         private readonly staticMethodName: string,
-    ) {}
+    ) { }
     public get handler() {
         return async (req: IncomingMessage, resp: ServerResponse) => {
+            let reqBody = '';
+            req.on('data', (chunk) => {
+                reqBody += chunk;
+            });
+            await new Promise((resolve) => req.on('end', resolve));
+            resp.writeHead(200, {
+                'Content-Type': 'text/plain; charset=utf-8',
+                'Transfer-Encoding': 'chunked',
+                'X-Content-Type-Options': 'nosniff',
+            });
+            const argsArr: any[][] = JSON.parse(reqBody) || [];
+            const jobs: Job[] = argsArr.map((args, index) => { return { index, args } });
             try {
-                const staticMethod = this.staticMethod().catch((e) => {
-                    reportEvent('failed to load module code', {
-                        error: e,
-                        className: this.className,
-                        staticMethodName: this.staticMethodName,
-                    });
-                    return () => {
-                        throw e;
-                    };
-                });
-                let reqBody = '';
-                req.on('data', (chunk) => {
-                    reqBody += chunk;
-                });
-                await new Promise((resolve) => req.on('end', resolve));
-                resp.writeHead(200, {
-                    'Content-Type': 'text/plain; charset=utf-8',
-                    'Transfer-Encoding': 'chunked',
-                    'X-Content-Type-Options': 'nosniff',
-                });
-                const jobs: Job[] = JSON.parse(reqBody) || [];
+                const staticMethod = await this.staticMethod();
+                const batchExecute = staticMethod.batchExecute;
+                let batches: JobBatch[] = [];
+                if (batchExecute) {
+                    batches = batchExecute(jobs);
+                } else {
+                    for (const job of jobs) {
+                        batches.push(convertJobAsBatch(job, staticMethod));
+                    }
+                }
                 const span = createSpanFromHeaders(req.headers) || newTrace(`handle ${req.url}`);
-                const promises = jobs.map((job, index) =>
-                    this.execute({ staticMethod, index, job, span, resp }),
+                const promises = batches.map(batch =>
+                    this.execute({ batch, span, resp }),
                 );
                 await Promise.all(promises);
+            } catch (e) {
+                for (let index = 0; index < jobs.length; index++) {
+                    resp.write(JSON.stringify({ index, error: new String(e) }) + '\n');
+                }
             } finally {
                 resp.end();
             }
@@ -73,13 +78,11 @@ export class HttpRpcServer {
     }
 
     private async execute(options: {
-        staticMethod: Promise<Function>;
-        index: number;
-        job: Job;
+        batch: JobBatch;
         span: Span;
         resp: ServerResponse;
     }) {
-        const { index, job, span, resp, staticMethod } = options;
+        const { span, resp, batch } = options;
         const scene = new Scene(span, this.options.ioConf);
         const read: string[] = [];
         const changed: string[] = [];
@@ -97,14 +100,24 @@ export class HttpRpcServer {
         };
         await scene.execute(reader, async () => {
             try {
-                const data = await (await staticMethod)(scene, ...options.job);
-                resp.write(JSON.stringify({ index, data, read, changed }) + '\n');
+                await batch.execute(scene);
+                for (const job of batch.jobs) {
+                    resp.write(JSON.stringify({ index: job.index, data: job.result, read, changed }) + '\n');
+                }
             } catch (e) {
-                scene.reportEvent('failed to handle', { job })
-                resp.write(JSON.stringify({ index, error: new String(e) }) + '\n');
+                scene.reportEvent('failed to handle', { batch });
+                for (const job of batch.jobs) {
+                    resp.write(JSON.stringify({ index: job.index, error: new String(e) }) + '\n');
+                }
             }
         });
     }
+}
+
+function convertJobAsBatch(job: Job, staticMethod: Function): JobBatch {
+    return { jobs: [job], execute: async (scene) => {
+        job.result = await staticMethod(scene, ...job.args);
+    }}
 }
 
 function createSpanFromHeaders(
