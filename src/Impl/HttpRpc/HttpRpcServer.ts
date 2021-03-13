@@ -1,6 +1,6 @@
 import type { ServerResponse, IncomingMessage } from 'http';
-import { newTrace } from '../../newTrace';
-import { Atom, AtomReader, IoConf, Scene, Span } from '../../Scene';
+import { newTrace, reportEvent, Span } from '../../tracing';
+import { Atom, AtomReader, IoConf, Scene } from '../../Scene';
 import { Job } from './HttpRpc';
 
 export class HttpRpcServer {
@@ -14,10 +14,14 @@ export class HttpRpcServer {
         return async (req: IncomingMessage, resp: ServerResponse) => {
             try {
                 const staticMethod = this.staticMethod().catch((e) => {
-                    console.error(e);
+                    reportEvent('failed to load module code', {
+                        error: e,
+                        className: this.className,
+                        staticMethodName: this.staticMethodName,
+                    });
                     return () => {
                         throw e;
-                    }
+                    };
                 });
                 let reqBody = '';
                 req.on('data', (chunk) => {
@@ -31,7 +35,9 @@ export class HttpRpcServer {
                 });
                 const jobs: Job[] = JSON.parse(reqBody) || [];
                 const span = createSpanFromHeaders(req.headers) || newTrace(`handle ${req.url}`);
-                const promises = jobs.map((job, index) => this.execute({staticMethod, index, job, span, resp}));
+                const promises = jobs.map((job, index) =>
+                    this.execute({ staticMethod, index, job, span, resp }),
+                );
                 await Promise.all(promises);
             } finally {
                 resp.end();
@@ -65,16 +71,14 @@ export class HttpRpcServer {
         }
         return staticMethod;
     }
-    
-    private async execute(
-        options: {
-            staticMethod: Promise<Function>,
-            index: number,
-            job: Job,
-            span: Span,
-            resp: ServerResponse
-        }
-    ) {
+
+    private async execute(options: {
+        staticMethod: Promise<Function>;
+        index: number;
+        job: Job;
+        span: Span;
+        resp: ServerResponse;
+    }) {
         const { index, job, span, resp, staticMethod } = options;
         const scene = new Scene(span, this.options.ioConf);
         const read: string[] = [];
@@ -96,14 +100,12 @@ export class HttpRpcServer {
                 const data = await (await staticMethod)(scene, ...options.job);
                 resp.write(JSON.stringify({ index, data, read, changed }) + '\n');
             } catch (e) {
-                console.error(`failed to handle: ${JSON.stringify(job)}\n`, e);
+                scene.reportEvent('failed to handle', { job })
                 resp.write(JSON.stringify({ index, error: new String(e) }) + '\n');
             }
         });
     }
 }
-
-
 
 function createSpanFromHeaders(
     headers: Record<string, string> | NodeJS.Dict<string | string[]>,

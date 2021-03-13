@@ -1,3 +1,4 @@
+import { reportEvent, Span } from './tracing';
 import { useLog } from './useLog';
 
 // Scene 生命周期的 trace 日志
@@ -6,26 +7,6 @@ const trace = useLog(REALM_SCENE);
 // 依赖追踪的 trace 日志，这个日志频率非常高
 export const REALM_REACTIVE = Symbol();
 const reactive_trace = useLog(REALM_REACTIVE);
-
-// 分布式追踪包括三层 trace -> span -> scene
-// 一个 trace 会有多个进程被多次执行，每次执行是一个 span
-// 一个 span 会包含一个或者多个 scene
-// 浏览器进入首次渲染，是一个 span
-// 每次鼠标点击，触发重渲染，也是一个 span。此时因为可能触发多处重渲染，所以会触发多个 scene
-// 后端 handle 一个 http 请求也是一个 span（但是和前端的 span 共享 trace 信息）
-export interface Span {
-    // traceId, traceOp, baggage 会 RPC 透传
-    traceId: string;
-    traceOp: string;
-    baggage: Record<string, any>;
-    //  RPC 的时候会把当前的 spanId 设置为 parentSpanId，并分配一个新的 spanId
-    parentSpanId?: string;
-    spanId: string;
-    // 以下字段仅在进程内，不会 RPC 透传
-    props: Record<string, any>;
-    onError?: (e: any) => void;
-    onSceneExecuting?: (scene: Scene) => Promise<any>;
-}
 
 // 界面渲染的过程中要需要读取数据，也就是使用Atom
 // 这个渲染的过程要把自己做为 AtomReader 加入到 Scene 里
@@ -126,6 +107,11 @@ export interface IoConf {
     database: Database;
 }
 
+export interface SpanSpi extends Span {
+    onError?: (e: any) => void;
+    onSceneExecuting?: (scene: Scene) => Promise<any>;
+}
+
 // STATUS_INIT -> STATUS_EXECUTING -> STATUS_FINISHED
 const STATUS_INIT = 0;
 const STATUS_EXECUTING = 1;
@@ -167,7 +153,7 @@ export class Scene {
     // 当前 scene.execute 执行的任务
     public executing?: Promise<any>;
 
-    constructor(public readonly span: Span, public readonly io: IoConf) {}
+    constructor(public readonly span: SpanSpi, public readonly io: IoConf) {}
 
     /**
      * @param theThis 执行 task 函数时传递的 this 参数
@@ -239,6 +225,10 @@ export class Scene {
         for (const reader of this.activeReaders) {
             reader.onAtomRead(atom);
         }
+    }
+
+    public reportEvent(message: string, event: Record<string, any>) {
+        reportEvent(message, event, this.span);
     }
 
     /**

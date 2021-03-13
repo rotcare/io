@@ -1,7 +1,7 @@
 import { BatchExecutor } from '../BatchExecutor';
 import { Span, Scene, ServiceProtocol, SimpleAtom } from '../../Scene';
 import { isJobError, JobResult } from './HttpRpc';
-import { newSpan } from '../../newTrace';
+import { newSpan, reportEvent } from '../../tracing';
 
 declare const fetch: any;
 
@@ -95,8 +95,9 @@ async function batchExecuteSameSpanJobs(
     }
     const { host, port } = Scene.serviceDiscover({ project, port: 3000 });
     const protocol = port === 443 ? 'https' : 'http';
+    const url = `${protocol}://${host}:${port}/${service}`;
     // 不同的 service 对应到 api gateway 不同的 url，对应到 serverless 的不同 function
-    const resp = await fetch(`${protocol}://${host}:${port}/${service}`, {
+    const resp = await fetch(url, {
         method: 'POST',
         headers,
         body: JSON.stringify(jobs.map((job) => job.args)),
@@ -111,12 +112,12 @@ async function batchExecuteSameSpanJobs(
         try {
             result = JSON.parse(line) as JobResult
         } catch(e) {
-            console.error(`found invalid respones: ${line}`)
+            reportEvent('found invalid response', { line, url });
             continue;
         }
         const job = jobs[result.index];
         if (!job) {
-            console.error(`referencing a non existing job: ${line}`);
+            reportEvent('referencing a non existing job', { line, url });
             continue;
         }
         if (isJobError(result)) {

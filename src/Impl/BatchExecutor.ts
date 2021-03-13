@@ -1,6 +1,9 @@
 // 利用了 javascript 的 promise 和 setTimeout 的排队优先级不同
 // setTimeout 会在 promise 能执行的都执行完成之后再执行
 // 这样可以让所有的 react 组件渲染都触发完 I/O，收集到了 jobs 里
+
+import { reportEvent } from "../tracing";
+
 // 由 setTimeout 注册的回调再来统一把 jobs 合并起来执行
 export class BatchExecutor<T> {
     private jobs: T[] = [];
@@ -32,7 +35,7 @@ export class BatchExecutor<T> {
             try {
                 await this.batchExecute(batch);
             } catch (e) {
-                console.error(`did not expect batchExecute to throw exception`, e);
+                reportEvent(`did not expect batchExecute to throw exception`, { error: e })
             }
         }
     }

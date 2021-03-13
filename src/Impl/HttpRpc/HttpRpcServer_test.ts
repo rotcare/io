@@ -1,16 +1,23 @@
 import * as http from 'http';
-import { newTrace } from '../../newTrace';
+import { newTrace, reportEvent } from '../../tracing';
 import { Scene } from '../../Scene';
 import { HttpRpcClient } from './HttpRpcClient';
 import { strict } from 'assert';
 import { HttpRpcServer } from './HttpRpcServer';
 import fetch from 'node-fetch';
 
-describe('HttpRpcClient', () => {
+describe('HttpRpcServer', () => {
     let httpServer: http.Server;
+    let oldOutput: any;
     before(() => {
+        oldOutput = reportEvent.output;
+        reportEvent.output = () => {};
         (global as any).fetch = fetch;
-    })
+    });
+    after(() => {
+        reportEvent.output = oldOutput;
+        (global as any).fetch = undefined;
+    });
     afterEach(() => {
         httpServer.close();
     });
@@ -27,8 +34,8 @@ describe('HttpRpcClient', () => {
                     TestServer: {
                         testMethod: () => {
                             return 'hello';
-                        }
-                    }
+                        },
+                    },
                 };
             },
             'TestServer',
@@ -42,7 +49,7 @@ describe('HttpRpcClient', () => {
         const result = await scene.execute(undefined, async () => {
             return await (scene.useServices('localhost') as any).testMethod();
         });
-        strict.equal(result, 'hello')
+        strict.equal(result, 'hello');
     });
     it('加载代码抛异常', async () => {
         const rpcServer = new HttpRpcServer(
@@ -67,8 +74,8 @@ describe('HttpRpcClient', () => {
             return await (scene.useServices('localhost') as any).testMethod();
         });
         await strict.rejects(result, (e: any) => {
-            return e.message.includes('wtf')
-        })
+            return e.message.includes('wtf');
+        });
     });
     it('执行代码抛异常', async () => {
         const rpcServer = new HttpRpcServer(
@@ -83,8 +90,8 @@ describe('HttpRpcClient', () => {
                     TestServer: {
                         testMethod: () => {
                             throw new Error('wtf');
-                        }
-                    }
+                        },
+                    },
                 };
             },
             'TestServer',
@@ -99,7 +106,7 @@ describe('HttpRpcClient', () => {
             return await (scene.useServices('localhost') as any).testMethod();
         });
         await strict.rejects(result, (e: any) => {
-            return e.message.includes('wtf')
-        })
-    })
+            return e.message.includes('wtf');
+        });
+    });
 });

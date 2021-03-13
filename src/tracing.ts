@@ -1,5 +1,31 @@
-import type { Span } from "./Scene";
+// 分布式追踪包括三层 trace -> span -> scene
+// 一个 trace 会有多个进程被多次执行，每次执行是一个 span
+// 一个 span 会包含一个或者多个 scene
+// 浏览器进入首次渲染，是一个 span
+// 每次鼠标点击，触发重渲染，也是一个 span。此时因为可能触发多处重渲染，所以会触发多个 scene
+// 后端 handle 一个 http 请求也是一个 span（但是和前端的 span 共享 trace 信息）
+export interface Span {
+      // traceId, traceOp, baggage 会 RPC 透传
+      traceId: string;
+      traceOp: string;
+      baggage: Record<string, any>;
+      //  RPC 的时候会把当前的 spanId 设置为 parentSpanId，并分配一个新的 spanId
+      parentSpanId?: string;
+      spanId: string;
+      // 以下字段仅在进程内，不会 RPC 透传
+      props: Record<string, any>;
+}
 
+/**
+ * 结构化日志接口，生产环境下会全量输出到 zipkin
+ * @param msg 发生了什么事情
+ * @param event 用 kv 描述这个事情的详情
+ * @param span 是不是附着在已有的一个 span 下做为子 span 上报，还是新起一条 trace
+ */
+export const reportEvent = (msg: string, event: Record<string, any>, span?: Span) => {
+  reportEvent.output(msg, event, span);
+}
+reportEvent.output = console.error;
 // 一般是在前端进程产生一个全新的 trace
 export function newTrace(traceOp: string): Span {
   // 分布式追踪的 traceId 是在前端浏览器这里分配的，一直会往后传递
@@ -22,6 +48,7 @@ export function newSpan(parentSpan: Span) {
   }
 }
 
+// copied from uuid
 let crypto_ = typeof global !== 'undefined' && ((global as any).crypto || (global as any).msCrypto); // for IE 11
 let rng: any;
 if (crypto_ && crypto_.getRandomValues) {

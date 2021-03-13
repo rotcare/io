@@ -1,7 +1,7 @@
 import { Scene } from "../Scene";
 import { InMemDatabase } from "./InMemDatabase";
 import { strict } from 'assert';
-import { newTrace } from "../newTrace";
+import { newTrace } from "../tracing";
 import { Entity } from "../Archetype/Entity";
 
 describe('InMemDatabase', () => {

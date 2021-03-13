@@ -1,6 +1,6 @@
 import { strict } from 'assert';
 import { Gateway } from './Archetype/Gateway';
-import { newTrace } from './newTrace';
+import { newTrace } from './tracing';
 import { Atom, AtomReader, Scene, SimpleAtom } from './Scene';
 
 class SomeGateway extends Gateway {

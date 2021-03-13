@@ -1,5 +1,5 @@
 import * as http from 'http';
-import { newTrace } from '../../newTrace';
+import { newTrace } from '../../tracing';
 import { Scene } from '../../Scene';
 import { HttpRpcClient } from './HttpRpcClient';
 import { strict } from 'assert';
