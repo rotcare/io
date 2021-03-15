@@ -74,6 +74,10 @@ export interface Table<T = any> extends Atom {
     tableName: string;
 }
 
+export function isTable(o: any): o is Table {
+    return !!o.tableName;
+}
+
 // 提供对各种 Table 的增删改查，适配各种类型的关系数据库
 export interface Database {
     // 会自动触发 table 的变更通知

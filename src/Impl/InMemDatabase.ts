@@ -10,7 +10,7 @@ export class InMemDatabase implements Database {
             update: this.update.bind(this, obj, scene),
             delete: this.delete.bind(this, obj, scene),
         });
-        const id = nextId();
+        const id = props.id === undefined ? nextId() : props.id;
         Object.assign(obj, { ...props, id });
         const records = this.getRecords(table);
         records.set(id, JSON.parse(JSON.stringify(obj)));
