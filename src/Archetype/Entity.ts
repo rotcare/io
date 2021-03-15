@@ -14,8 +14,16 @@ export class Entity implements EntitySpi {
         update: () => Promise<void>;
         delete: () => Promise<void>;
     }) {
-        this.update = options.update;
-        this.delete = options.delete;
+        Object.defineProperty(this, 'update', {
+            configurable: false,
+            enumerable: false,
+            value: options.update
+        });
+        Object.defineProperty(this, 'delete', {
+            configurable: false,
+            enumerable: false,
+            value: options.delete
+        });
     }
 
     // 这些 static 方法让 ActiveRecord class 自身就是 atom
@@ -35,6 +43,9 @@ export class Entity implements EntitySpi {
             (this as any)['_atom'] = atom = new TableAtom(this.tableName);
         }
         return atom;
+    }
+    public get table() {
+        return this.constructor as typeof Entity;
     }
 }
 

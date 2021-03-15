@@ -27,3 +27,5 @@ export interface JobError {
     index: number;
     error: any;
 }
+
+export type decode = (encoded: any) => any;

@@ -105,7 +105,7 @@ export class HttpRpcServer {
                     resp.write(JSON.stringify({ index: job.index, data: job.result, read, changed }) + '\n');
                 }
             } catch (e) {
-                scene.reportEvent('failed to handle', { batch });
+                scene.reportEvent('failed to handle', { batch, error: e });
                 for (const job of batch.jobs) {
                     resp.write(JSON.stringify({ index: job.index, error: new String(e) }) + '\n');
                 }

@@ -1,6 +1,6 @@
 import { BatchExecutor } from '../BatchExecutor';
 import { Scene, ServiceProtocol, SimpleAtom } from '../../Scene';
-import { isJobError, JobResult } from './HttpRpc';
+import { decode, isJobError, JobResult } from './HttpRpc';
 import { newSpan, reportEvent, Span } from '../../tracing';
 
 declare const fetch: any;
@@ -9,6 +9,12 @@ declare const fetch: any;
 // 1. 需要把多个前端组件发的请求给聚合成一批 jobs 批量执行
 // 2. 每个 job 只要处理完了，要立即返回给前端，而不是要等所有 jobs 都执行完才返回
 export class HttpRpcClient implements ServiceProtocol {
+    private readonly decode?: decode;
+    constructor(options?: {
+        decode?: decode
+    }) {
+        this.decode = options?.decode;
+    }
     public async callService(scene: Scene, project: string, service: string, args: any[]) {
         let resolve: (result: any) => void;
         let reject: (reason: any) => void;
@@ -17,6 +23,7 @@ export class HttpRpcClient implements ServiceProtocol {
             reject = _reject;
         });
         enqueue({
+            decode: this.decode,
             scene,
             project,
             service,
@@ -29,6 +36,7 @@ export class HttpRpcClient implements ServiceProtocol {
 }
 
 interface RpcJob {
+    decode?: decode;
     scene: Scene;
     project: string;
     service: string;
@@ -111,7 +119,7 @@ async function batchExecuteSameSpanJobs(
         let result: JobResult;
         try {
             result = JSON.parse(line) as JobResult
-        } catch(e) {
+        } catch (e) {
             reportEvent('found invalid response', { line, url });
             continue;
         }
@@ -129,7 +137,8 @@ async function batchExecuteSameSpanJobs(
             for (const tableName of result.changed) {
                 job.scene.onAtomChanged(remoteTable(tableName));
             }
-            job.resolve(result.data);
+            const data = job.decode ? job.decode(result.data) : result.data;
+            job.resolve(data);
         }
     }
 }
