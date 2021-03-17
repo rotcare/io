@@ -5,11 +5,12 @@ import { JobBatch, Job } from './HttpRpc';
 
 export class HttpRpcServer {
     constructor(
-        private readonly options: { ioConf: IoConf },
-        private readonly moduleProvider: () => Promise<any>,
-        private readonly className: string,
-        private readonly staticMethodName: string,
-    ) { }
+        private readonly options: {
+            ioProvider: () => IoConf;
+            func?: Function;
+            funcProvider?: () => Promise<Function>;
+        },
+    ) {}
     public get handler() {
         return async (req: IncomingMessage, resp: ServerResponse) => {
             let reqBody = '';
@@ -23,9 +24,11 @@ export class HttpRpcServer {
                 'X-Content-Type-Options': 'nosniff',
             });
             const argsArr: any[][] = JSON.parse(reqBody) || [];
-            const jobs: Job[] = argsArr.map((args, index) => { return { index, args } });
+            const jobs: Job[] = argsArr.map((args, index) => {
+                return { index, args };
+            });
             try {
-                const staticMethod = await this.staticMethod();
+                const staticMethod: any = this.options.func || (await this.options.funcProvider!());
                 const batchExecute = staticMethod.batchExecute;
                 let batches: JobBatch[] = [];
                 if (batchExecute) {
@@ -36,9 +39,7 @@ export class HttpRpcServer {
                     }
                 }
                 const span = createSpanFromHeaders(req.headers) || newTrace(`handle ${req.url}`);
-                const promises = batches.map(batch =>
-                    this.execute({ batch, span, resp }),
-                );
+                const promises = batches.map((batch) => this.execute({ batch, span, resp }));
                 await Promise.all(promises);
             } catch (e) {
                 for (let index = 0; index < jobs.length; index++) {
@@ -49,41 +50,10 @@ export class HttpRpcServer {
             }
         };
     }
-    private async module() {
-        try {
-            const module = await this.moduleProvider();
-            if (!module) {
-                throw new Error(`module is: ${module}`);
-            }
-            return module;
-        } catch (e) {
-            throw new Error(`failed to load module: ${e}`);
-        }
-    }
-    private async clazz() {
-        const module = await this.module();
-        const clazz = Reflect.get(module, this.className);
-        if (!clazz) {
-            throw new Error(`class ${this.className} not found in module`);
-        }
-        return clazz;
-    }
-    private async staticMethod() {
-        const clazz = await this.clazz();
-        const staticMethod = Reflect.get(clazz, this.staticMethodName);
-        if (!staticMethod) {
-            throw new Error(`static method ${this.staticMethodName} not found in class ${clazz}`);
-        }
-        return staticMethod;
-    }
 
-    private async execute(options: {
-        batch: JobBatch;
-        span: Span;
-        resp: ServerResponse;
-    }) {
+    private async execute(options: { batch: JobBatch; span: Span; resp: ServerResponse }) {
         const { span, resp, batch } = options;
-        const scene = new Scene(span, this.options.ioConf);
+        const scene = new Scene(span, this.options.ioProvider());
         const read: string[] = [];
         const changed: string[] = [];
         scene.onAtomChanged = (atom) => {
@@ -102,7 +72,10 @@ export class HttpRpcServer {
             try {
                 await batch.execute(scene);
                 for (const job of batch.jobs) {
-                    resp.write(JSON.stringify({ index: job.index, data: job.result, read, changed }) + '\n');
+                    resp.write(
+                        JSON.stringify({ index: job.index, data: job.result, read, changed }) +
+                            '\n',
+                    );
                 }
             } catch (e) {
                 scene.reportEvent('failed to handle', { batch, error: e });
@@ -112,12 +85,48 @@ export class HttpRpcServer {
             }
         });
     }
+
+    public static create(
+        ioProvider: () => IoConf,
+        moduleProvider: () => Promise<any>,
+        className: string,
+        staticMethodName: string,
+    ) {
+        return new HttpRpcServer({
+            ioProvider,
+            async funcProvider() {
+                let module: any;
+                try {
+                    module = await moduleProvider();
+                    if (!module) {
+                        throw new Error(`module is: ${module}`);
+                    }
+                } catch (e) {
+                    throw new Error(`failed to load module: ${e}`);
+                }
+                const clazz = Reflect.get(module, className);
+                if (!clazz) {
+                    throw new Error(`class ${className} not found in module`);
+                }
+                const staticMethod = Reflect.get(clazz, staticMethodName);
+                if (!staticMethod) {
+                    throw new Error(
+                        `static method ${staticMethodName} not found in class ${clazz}`,
+                    );
+                }
+                return staticMethod;
+            },
+        });
+    }
 }
 
 function convertJobAsBatch(job: Job, staticMethod: Function): JobBatch {
-    return { jobs: [job], execute: async (scene) => {
-        job.result = await staticMethod(scene, ...job.args);
-    }}
+    return {
+        jobs: [job],
+        execute: async (scene) => {
+            job.result = await staticMethod(scene, ...job.args);
+        },
+    };
 }
 
 function createSpanFromHeaders(
