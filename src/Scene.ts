@@ -263,9 +263,13 @@ export class Scene {
      * @param props 列的初始值
      * @returns 刚插入的数据，其上有 update/delete 的方法
      */
-    public insert<T>(table: Table<T>, props: Partial<FieldsOf<T>>): Promise<T> {
+    public create<T>(table: Table<T>, props: Partial<FieldsOf<T>>): Promise<T> {
         this.assertExecuting();
-        return this.io.database.insert(this, table, props) as any;
+        const createFunc = Reflect.get(table, `create${table.tableName}`);
+        if (createFunc) {
+            return createFunc(this, props);
+        }
+        throw new Error(`create${table.tableName} not defined in class`);
     }
     /**
      * 简单的单表查询，不能满足的用 io.database.executeSql 表达
@@ -290,35 +294,30 @@ export class Scene {
             return arg1(this, ...remainingArgs);
         }
         const table = arg1;
-        const customized = Reflect.get(table, `query${table.tableName[0].toUpperCase()}${table.tableName.substr(1)}`);
-        if (customized) {
-            return customized(this, ...remainingArgs);
+        const queryFunc = Reflect.get(table, `query${table.tableName}`);
+        if (queryFunc) {
+            return queryFunc(this, ...remainingArgs);
         }
-        return this.io.database.query(this, table, remainingArgs[0]);
+        throw new Error(`query${table.tableName} not defined in class`);
     }
     // 和 query 一样，但是要求返回数组有且仅有一个元素
     public async load<T>(table: Table<T>, props: Partial<T>): Promise<T> {
         this.assertExecuting();
-        const records = await this.query(table, props);
-        if (records.length === 0) {
-            const msg = `${table.tableName} finid 0 match of ${JSON.stringify(props)}`;
-            throw new Error(msg);
+        const loadFunc = Reflect.get(table, `load${table.tableName}`);
+        if (loadFunc) {
+            return loadFunc(this, props);
         }
-        if (records.length !== 1) {
-            const msg = `${table.tableName} find more than 1 match of ${JSON.stringify(props)}`;
-            throw new Error(msg);
-        }
-        return records[0];
+        throw new Error(`load${table.tableName} not defined in class`);
     }
     // 和 load 一样，但是查询条件只能是 id，或者没有任何条件
     // 当没有任何条件的时候，假设指定表是单例的
     public async get<T>(table: Table<T>, id?: any): Promise<T> {
         this.assertExecuting();
-        const customized = Reflect.get(table, `get${table.tableName[0].toUpperCase()}${table.tableName.substr(1)}`);
-        if (customized) {
-            return customized(this, id);
+        const getFunc = Reflect.get(table, `get${table.tableName}`);
+        if (getFunc) {
+            return getFunc(this, id);
         }
-        return await this.load(table, id ? { id } : ({} as any));
+        throw new Error(`get${table.tableName} not defined in class`);
     }
     // sleep 延迟的毫秒数 (一秒等于1000毫秒)
     public async sleep(ms: number) {

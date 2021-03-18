@@ -10,6 +10,12 @@ describe('InMemDatabase', () => {
             id: string;
             name: string;
             price?: number;
+            public static async createProduct(scene: Scene, props: Partial<Product>) {
+                return await scene.io.database.insert(scene, Product, props);
+            }
+            public static async queryProduct(scene: Scene, props: Partial<Product>) {
+                return await scene.io.database.query(scene, Product, props);
+            }
             public async updatePrice(scene: Scene, newPrice: number) {
                 this.price = newPrice;
                 await scene.io.database.update(scene, this.table, this);
@@ -24,7 +30,7 @@ describe('InMemDatabase', () => {
             serviceProtocol: undefined as any
         });
         await scene.execute(undefined, async() => {
-            const apple = await scene.insert(Product, { name: 'apple' });
+            const apple = await scene.create(Product, { name: 'apple' });
             strict.ok(apple.id);
             await apple.updatePrice(scene, 100);
             strict.equal((await scene.query(Product, { price: 100 })).length, 1);
