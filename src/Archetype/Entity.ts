@@ -34,18 +34,8 @@ export class Entity {
     }
 }
 
-// qualifiedName 如果没有设置，默认取 name 的值做为表名
-// 原因是 class 的 name 在代码压缩的时候会被修改掉
 Object.defineProperty(Entity, 'tableName', {
     get(this: typeof Entity) {
-        const qualifiedName: string = (this as any).qualifiedName;
-        if (qualifiedName) {
-            const pos = qualifiedName.lastIndexOf('/');
-            if (pos === -1) {
-                return qualifiedName;
-            }
-            return qualifiedName.substr(pos + 1);
-        }
         return this.name;
     },
 })
