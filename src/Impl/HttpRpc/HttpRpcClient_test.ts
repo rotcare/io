@@ -8,6 +8,7 @@ import fetch from 'node-fetch';
 describe('HttpRpcClient', () => {
     let server: http.Server;
     before(() => {
+        console.log('!!!', process.env);
         (global as any).fetch = fetch;
     })
     afterEach(() => {
