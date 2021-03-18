@@ -10,6 +10,7 @@ export class Entity implements EntitySpi {
     protected update: () => Promise<void>;
     protected delete: () => Promise<void>;
     // @internal
+    // TODO: remove onLoad, and do not inject
     public onLoad(options: {
         update: () => Promise<void>;
         delete: () => Promise<void>;

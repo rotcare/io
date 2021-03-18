@@ -23,20 +23,12 @@ describe('HttpRpcServer', () => {
         httpServer.close();
     });
     it('成功执行', async () => {
-        const rpcServer = new HttpRpcServer(
-            {} as any,
-            async () => {
-                return {
-                    TestServer: {
-                        testMethod: () => {
-                            return 'hello';
-                        },
-                    },
-                };
-            },
-            'TestServer',
-            'testMethod',
-        );
+        const rpcServer = new HttpRpcServer({
+            ioProvider: () => {},
+            func: () => {
+                return 'hello';
+            }
+        } as any);
         httpServer = http.createServer(rpcServer.handler).listen(3000);
         const scene = new Scene(newTrace('test'), {
             database: undefined as any,
@@ -48,8 +40,8 @@ describe('HttpRpcServer', () => {
         strict.equal(result, 'hello');
     });
     it('加载代码抛异常', async () => {
-        const rpcServer = new HttpRpcServer(
-            {} as any,
+        const rpcServer = HttpRpcServer.create(
+            (() => {}) as any,
             async () => {
                 throw new Error('wtf');
             },
@@ -69,20 +61,12 @@ describe('HttpRpcServer', () => {
         });
     });
     it('执行代码抛异常', async () => {
-        const rpcServer = new HttpRpcServer(
-            {} as any,
-            async () => {
-                return {
-                    TestServer: {
-                        testMethod: () => {
-                            throw new Error('wtf');
-                        },
-                    },
-                };
+        const rpcServer = new HttpRpcServer({
+            ioProvider: () => {},
+            func: () => {
+                throw new Error('wtf');
             },
-            'TestServer',
-            'testMethod',
-        );
+        } as any);
         httpServer = http.createServer(rpcServer.handler).listen(3000);
         const scene = new Scene(newTrace('test'), {
             database: undefined as any,
@@ -96,28 +80,23 @@ describe('HttpRpcServer', () => {
         });
     });
     it('批量执行', async () => {
-        const rpcServer = new HttpRpcServer(
-            {} as any,
-            async () => {
-                const batchExecute: batchExecute = (jobs) => {
-                    const batch: JobBatch = { jobs, async execute() {
-                        for(const job of jobs) {
-                            job.result = 'hello';
-                        }
-                    }}
-                    return [batch];
-                };
-                return {
-                    TestServer: {
-                        testMethod: {
-                            batchExecute,
-                        },
-                    },
-                };
+        const batchExecute: batchExecute = (jobs) => {
+            const batch: JobBatch = {
+                jobs,
+                async execute() {
+                    for (const job of jobs) {
+                        job.result = 'hello';
+                    }
+                },
+            };
+            return [batch];
+        };
+        const rpcServer = new HttpRpcServer({
+            ioProvider: () => {},
+            func: {
+                batchExecute,
             },
-            'TestServer',
-            'testMethod',
-        );
+        } as any);
         httpServer = http.createServer(rpcServer.handler).listen(3000);
         const scene = new Scene(newTrace('test'), {
             database: undefined as any,
