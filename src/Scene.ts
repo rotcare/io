@@ -88,6 +88,10 @@ export interface Database {
     // 执行任意 SQL
     // Database 的实现不会解析 sql 去订阅 Table，需要调用 executeSql 的地方自己去完成订阅
     executeSql(scene: Scene, sql: string, sqlVars: Record<string, any>): Promise<any[]>;
+    beginTransaction(scene: Scene): Promise<void>;
+    commit(scene: Scene): Promise<void>;
+    rollback(scene: Scene): Promise<void>;
+    onSceneFinished(scene: Scene): Promise<void>;
 }
 
 // 提供远程方法调用的具体实现
@@ -101,6 +105,7 @@ export interface ServiceProtocol {
      * @throws 远端静态方法如果有抛异常，也会在本地重新抛出（当然堆栈信息丢失了）
      */
     callService(scene: Scene, project: string, service: string, args: any[]): Promise<any>;
+    onSceneFinished(scene: Scene): Promise<void>;
 }
 
 // 输入输出的全部配置，不应该超出这个接口去访问其他的外设
@@ -181,8 +186,25 @@ export class Scene {
                     task.call(theThis, this, ...args),
                 );
             } finally {
+                if (this.io?.database) {
+                    try {
+                        await this.io.database.onSceneFinished(this);
+                    } catch(e) {
+                        reportEvent('failed to call database.onSceneFinished', { error: e }, this.span);
+                    }
+                }
+                if (this.io?.serviceProtocol) {
+                    try {
+                        await this.io.serviceProtocol.onSceneFinished(this);
+                    } catch(e) {
+                        reportEvent('failed to call serviceProtocol.onSceneFinished', { error: e }, this.span);
+                    }
+                }
                 if (isReader) {
                     this.activeReaders.delete(theThis);
+                }
+                if (this.activeReaders.size > 0) {
+                    reportEvent('detected activeReaders not empty after scene finished', {}, this.span);
                 }
                 // 无论是否抛出异常，执行都算结束了
                 // 即便要重试，也应该创建一个新的 scene

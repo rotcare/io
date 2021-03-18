@@ -33,6 +33,8 @@ export class HttpRpcClient implements ServiceProtocol {
         });
         return await promise;
     }
+    public async onSceneFinished(scene: Scene) {
+    }
 }
 
 interface RpcJob {

@@ -17,6 +17,8 @@ describe('Scene', () => {
                     // 5. 告诉当前的 readers，你读到了这张表了
                     scene.onAtomRead(someTable);
                 },
+                async onSceneFinished() {
+                }
             },
         });
         // 2. 用 scene 来跟踪 async function 的执行

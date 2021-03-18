@@ -42,8 +42,16 @@ export class InMemDatabase implements Database {
         records.delete(props.id);
         scene.onAtomChanged(table);
     }
+    public async onSceneFinished(scene: Scene): Promise<void> {
+    }
     public executeSql(scene: Scene, sql: string, sqlVars: Record<string, any>): Promise<any[]> {
         throw new Error('unsupported');
+    }
+    public async beginTransaction(scene: Scene): Promise<void> {
+    }
+    public async commit(scene: Scene): Promise<void> {
+    }
+    public async rollback(scene: Scene): Promise<void> {
     }
     private getRecords(table: Table) {
         let records = this.tables.get(table);
