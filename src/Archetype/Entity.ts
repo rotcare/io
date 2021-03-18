@@ -1,30 +1,14 @@
-import { AtomSubscriber, EntitySpi, SimpleAtom, Table } from "../Scene";
+import { AtomSubscriber, SimpleAtom, Table } from "../Scene";
 import { Span } from "../tracing";
 
 // 数据库表
-export class Entity implements EntitySpi {
-    public static IS_ENTITY = true as true;
+export class Entity {
     public static readonly tableName: string;
 
-    // 以下被 Database 的实现给注入
-    protected update: () => Promise<void>;
-    protected delete: () => Promise<void>;
-    // @internal
-    // TODO: remove onLoad, and do not inject
-    public onLoad(options: {
-        update: () => Promise<void>;
-        delete: () => Promise<void>;
-    }) {
-        Object.defineProperty(this, 'update', {
-            configurable: false,
-            enumerable: false,
-            value: options.update
-        });
-        Object.defineProperty(this, 'delete', {
-            configurable: false,
-            enumerable: false,
-            value: options.delete
-        });
+    public static create(props: Record<string, any>) {
+        const entity = new this();
+        Object.assign(entity, props);
+        return entity;
     }
 
     // 这些 static 方法让 ActiveRecord class 自身就是 atom

@@ -10,12 +10,12 @@ describe('InMemDatabase', () => {
             id: string;
             name: string;
             price?: number;
-            public updatePrice(newPrice: number) {
+            public async updatePrice(scene: Scene, newPrice: number) {
                 this.price = newPrice;
-                this.update();
+                await scene.io.database.update(scene, this.table, this);
             }
-            public deleteMe() {
-                return this.delete();
+            public async deleteMe(scene: Scene) {
+                await scene.io.database.delete(scene, this.table, this);
             }
         }
         const database = new InMemDatabase();
@@ -26,9 +26,9 @@ describe('InMemDatabase', () => {
         await scene.execute(undefined, async() => {
             const apple = await scene.insert(Product, { name: 'apple' });
             strict.ok(apple.id);
-            apple.updatePrice(100);
+            await apple.updatePrice(scene, 100);
             strict.equal((await scene.query(Product, { price: 100 })).length, 1);
-            await apple.deleteMe();
+            await apple.deleteMe(scene);
             strict.equal((await scene.query(Product, {})).length, 0);
         })
     })

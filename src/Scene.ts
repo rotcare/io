@@ -61,17 +61,11 @@ export class SimpleAtom {
     }
 }
 
-export interface EntitySpi {
-    onLoad(options: {
-        update: () => Promise<void>;
-        delete: () => Promise<void>;
-    }): void;
-}
-
-// ActiveRecord class 就实现了 Table 接口
+// Entity class 就实现了 Table 接口
 export interface Table<T = any> extends Atom {
-    new (...args: any[]): T;
+    new (): T,
     tableName: string;
+    create(props: Partial<T>): object;
 }
 
 export function isTable(o: any): o is Table {
@@ -87,6 +81,10 @@ export interface Database {
     // 会自动对 table 进行订阅
     // 返回的实例对象有 update/delete 的能力
     query(scene: Scene, table: Table, props: Record<string, any>): Promise<any[]>;
+    // 更新
+    update(scene: Scene, table: Table, props: Record<string, any>): Promise<void>;
+    // 删除
+    delete(scene: Scene, table: Table, props: Record<string, any>): Promise<void>;
     // 执行任意 SQL
     // Database 的实现不会解析 sql 去订阅 Table，需要调用 executeSql 的地方自己去完成订阅
     executeSql(scene: Scene, sql: string, sqlVars: Record<string, any>): Promise<any[]>;
@@ -288,7 +286,7 @@ export class Scene {
     ): Promise<T[]>;
     public query(arg1: any, ...remainingArgs: any[]) {
         this.assertExecuting();
-        if (!arg1.IS_ENTITY) {
+        if (!isTable(arg1)) {
             return arg1(this, ...remainingArgs);
         }
         const table = arg1;

@@ -1,15 +1,11 @@
-import { Database, EntitySpi, Scene, Table } from '../Scene';
+import { Database, Scene, Table } from '../Scene';
 
 // 用内存模拟数据库
 export class InMemDatabase implements Database {
     private tables: Map<Table, Map<string, Record<string, any>>> = new Map();
 
     public async insert(scene: Scene, table: Table, props: Record<string, any>): Promise<any> {
-        const obj: EntitySpi = new table(scene);
-        obj.onLoad({
-            update: this.update.bind(this, obj, scene),
-            delete: this.delete.bind(this, obj, scene),
-        });
+        const obj = table.create(props);
         const id = props.id === undefined ? nextId() : props.id;
         Object.assign(obj, { ...props, id });
         const records = this.getRecords(table);
@@ -31,25 +27,20 @@ export class InMemDatabase implements Database {
         const objs = [];
         for (const record of records.values()) {
             if (isMatch(record)) {
-                const obj: EntitySpi = Object.assign(new table(scene), record);
-                obj.onLoad({
-                    update: this.update.bind(this, obj, scene),
-                    delete: this.delete.bind(this, obj, scene),
-                });
-                objs.push(obj);
+                objs.push(table.create(record));
             }
         }
         return objs;
     }
-    private async update(obj: any, scene: Scene) {
-        const records = this.getRecords(obj.constructor);
-        records.set(obj.id, JSON.parse(JSON.stringify(obj)));
-        scene.onAtomChanged(obj.constructor);
+    public async update(scene: Scene, table: Table, props: Record<string, any>) {
+        const records = this.getRecords(table);
+        records.set(props.id, JSON.parse(JSON.stringify(props)));
+        scene.onAtomChanged(table);
     }
-    private async delete(obj: any, scene: Scene) {
-        const records = this.getRecords(obj.constructor);
-        records.delete(obj.id);
-        scene.onAtomChanged(obj.constructor);
+    public async delete(scene: Scene, table: Table, props: Record<string, any>) {
+        const records = this.getRecords(table);
+        records.delete(props.id);
+        scene.onAtomChanged(table);
     }
     public executeSql(scene: Scene, sql: string, sqlVars: Record<string, any>): Promise<any[]> {
         throw new Error('unsupported');
