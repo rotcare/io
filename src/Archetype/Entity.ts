@@ -4,7 +4,7 @@ import { Span } from "../tracing";
 // 数据库表
 export class Entity implements EntitySpi {
     public static IS_ENTITY = true as true;
-    public static tableName: string;
+    public static readonly tableName: string;
 
     // 以下被 Database 的实现给注入
     protected update: () => Promise<void>;
@@ -49,17 +49,20 @@ export class Entity implements EntitySpi {
     }
 }
 
-// tableName 如果没有设置，默认取 name 的值做为表名
+// qualifiedName 如果没有设置，默认取 name 的值做为表名
+// 原因是 class 的 name 在代码压缩的时候会被修改掉
 Object.defineProperty(Entity, 'tableName', {
     get(this: typeof Entity) {
-        if ((this as any)._tableName) {
-            return (this as any)._tableName;
+        const qualifiedName: string = (this as any).qualifiedName;
+        if (qualifiedName) {
+            const pos = qualifiedName.lastIndexOf('/');
+            if (pos === -1) {
+                return qualifiedName;
+            }
+            return qualifiedName.substr(pos + 1);
         }
         return this.name;
     },
-    set(this: typeof Entity, newName: string) {
-        (this as any)._tableName = newName;
-    }
 })
 
 class TableAtom extends SimpleAtom {
