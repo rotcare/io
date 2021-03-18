@@ -4,38 +4,7 @@ import { Scene } from '../../Scene';
 import { HttpRpcClient } from './HttpRpcClient';
 import { strict } from 'assert';
 import fetch from 'node-fetch';
-import * as dns from 'dns';
-import { promisify } from 'util';
-import * as net from 'net';
 
-const resolve = promisify(dns.resolve4);
-
-async function isPortReachable(port: number) {
-	const promise = new Promise(((resolve, reject) => {
-		const socket = new net.Socket();
-
-		const onError = () => {
-			socket.destroy();
-			reject();
-		};
-
-		socket.setTimeout(500);
-		socket.once('error', onError);
-		socket.once('timeout', onError);
-
-		socket.connect(port, 'localhost', () => {
-			socket.end();
-			resolve(undefined);
-		});
-	}));
-
-	try {
-		await promise;
-		return true;
-	} catch (_) {
-		return false;
-	}
-};
 describe('HttpRpcClient', () => {
     let server: http.Server;
     before(() => {
@@ -45,7 +14,6 @@ describe('HttpRpcClient', () => {
         server.close();
     });
     it('成功调用', async () => {
-        console.log('!!!', await isPortReachable(6379));
         let reqBody = '';
         let url = '';
         server = http
