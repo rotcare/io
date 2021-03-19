@@ -2,7 +2,7 @@
 // setTimeout 会在 promise 能执行的都执行完成之后再执行
 // 这样可以让所有的 react 组件渲染都触发完 I/O，收集到了 jobs 里
 
-import { reportEvent } from "../tracing";
+import { reportEvent } from "./tracing";
 
 // 由 setTimeout 注册的回调再来统一把 jobs 合并起来执行
 export class BatchExecutor<T> {

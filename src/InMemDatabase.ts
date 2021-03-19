@@ -1,4 +1,4 @@
-import { Database, Scene, Table } from '../Scene';
+import { Database, Scene, Table } from './Scene';
 
 // 用内存模拟数据库
 export class InMemDatabase implements Database {
