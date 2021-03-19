@@ -28,7 +28,7 @@ describe('HttpRpcServer', () => {
                 return 'hello';
             }
         } as any);
-        httpServer = http.createServer(rpcServer.createHandler(undefined as any)).listen(3000);
+        httpServer = http.createServer(rpcServer.handle.bind(rpcServer, undefined as any)).listen(3000);
         const scene = new Scene(newTrace('test'), {
             database: undefined as any,
             serviceProtocol: new HttpRpcClient(),
@@ -46,7 +46,7 @@ describe('HttpRpcServer', () => {
             'TestServer',
             'testMethod',
         );
-        httpServer = http.createServer(rpcServer.createHandler(undefined as any)).listen(3000);
+        httpServer = http.createServer(rpcServer.handle.bind(rpcServer, undefined as any)).listen(3000);
         const scene = new Scene(newTrace('test'), {
             database: undefined as any,
             serviceProtocol: new HttpRpcClient(),
@@ -64,7 +64,7 @@ describe('HttpRpcServer', () => {
                 throw new Error('wtf');
             },
         } as any);
-        httpServer = http.createServer(rpcServer.createHandler(undefined as any)).listen(3000);
+        httpServer = http.createServer(rpcServer.handle.bind(rpcServer, undefined as any)).listen(3000);
         const scene = new Scene(newTrace('test'), {
             database: undefined as any,
             serviceProtocol: new HttpRpcClient(),
@@ -93,7 +93,7 @@ describe('HttpRpcServer', () => {
                 batchExecute,
             },
         } as any);
-        httpServer = http.createServer(rpcServer.createHandler(undefined as any)).listen(3000);
+        httpServer = http.createServer(rpcServer.handle.bind(rpcServer, undefined as any)).listen(3000);
         const scene = new Scene(newTrace('test'), {
             database: undefined as any,
             serviceProtocol: new HttpRpcClient(),

@@ -10,47 +10,50 @@ export class HttpRpcServer {
             funcProvider?: () => Promise<Function>;
         },
     ) {}
-    public createHandler(ioConf: IoConf) {
-        return async (req: IncomingMessage, resp: ServerResponse) => {
-            let reqBody = '';
-            req.on('data', (chunk) => {
-                reqBody += chunk;
-            });
-            await new Promise((resolve) => req.on('end', resolve));
-            resp.writeHead(200, {
-                'Content-Type': 'text/plain; charset=utf-8',
-                'Transfer-Encoding': 'chunked',
-                'X-Content-Type-Options': 'nosniff',
-            });
-            const argsArr: any[][] = JSON.parse(reqBody) || [];
-            const jobs: Job[] = argsArr.map((args, index) => {
-                return { index, args };
-            });
-            try {
-                const staticMethod: any = this.options.func || (await this.options.funcProvider!());
-                const batchExecute = staticMethod.batchExecute;
-                let batches: JobBatch[] = [];
-                if (batchExecute) {
-                    batches = batchExecute(jobs);
-                } else {
-                    for (const job of jobs) {
-                        batches.push(convertJobAsBatch(job, staticMethod));
-                    }
+    public async handle(ioConf: IoConf, req: IncomingMessage, resp: ServerResponse) {
+        let reqBody = '';
+        req.on('data', (chunk) => {
+            reqBody += chunk;
+        });
+        await new Promise((resolve) => req.on('end', resolve));
+        resp.writeHead(200, {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Transfer-Encoding': 'chunked',
+            'X-Content-Type-Options': 'nosniff',
+        });
+        const argsArr: any[][] = JSON.parse(reqBody) || [];
+        const jobs: Job[] = argsArr.map((args, index) => {
+            return { index, args };
+        });
+        try {
+            const staticMethod: any = this.options.func || (await this.options.funcProvider!());
+            const batchExecute = staticMethod.batchExecute;
+            let batches: JobBatch[] = [];
+            if (batchExecute) {
+                batches = batchExecute(jobs);
+            } else {
+                for (const job of jobs) {
+                    batches.push(convertJobAsBatch(job, staticMethod));
                 }
-                const span = createSpanFromHeaders(req.headers) || newTrace(`handle ${req.url}`);
-                const promises = batches.map((batch) => this.execute({ ioConf, batch, span, resp }));
-                await Promise.all(promises);
-            } catch (e) {
-                for (let index = 0; index < jobs.length; index++) {
-                    resp.write(JSON.stringify({ index, error: new String(e) }) + '\n');
-                }
-            } finally {
-                resp.end();
             }
-        };
+            const span = createSpanFromHeaders(req.headers) || newTrace(`handle ${req.url}`);
+            const promises = batches.map((batch) => this.execute({ ioConf, batch, span, resp }));
+            await Promise.all(promises);
+        } catch (e) {
+            for (let index = 0; index < jobs.length; index++) {
+                resp.write(JSON.stringify({ index, error: new String(e) }) + '\n');
+            }
+        } finally {
+            resp.end();
+        }
     }
 
-    private async execute(options: { ioConf: IoConf, batch: JobBatch; span: Span; resp: ServerResponse }) {
+    private async execute(options: {
+        ioConf: IoConf;
+        batch: JobBatch;
+        span: Span;
+        resp: ServerResponse;
+    }) {
         const { span, resp, batch } = options;
         const scene = new Scene(span, options.ioConf);
         const read: string[] = [];
