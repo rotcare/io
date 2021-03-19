@@ -24,12 +24,11 @@ describe('HttpRpcServer', () => {
     });
     it('成功执行', async () => {
         const rpcServer = new HttpRpcServer({
-            ioProvider: () => {},
             func: () => {
                 return 'hello';
             }
         } as any);
-        httpServer = http.createServer(rpcServer.handler).listen(3000);
+        httpServer = http.createServer(rpcServer.createHandler(undefined as any)).listen(3000);
         const scene = new Scene(newTrace('test'), {
             database: undefined as any,
             serviceProtocol: new HttpRpcClient(),
@@ -41,14 +40,13 @@ describe('HttpRpcServer', () => {
     });
     it('加载代码抛异常', async () => {
         const rpcServer = HttpRpcServer.create(
-            (() => {}) as any,
             async () => {
                 throw new Error('wtf');
             },
             'TestServer',
             'testMethod',
         );
-        httpServer = http.createServer(rpcServer.handler).listen(3000);
+        httpServer = http.createServer(rpcServer.createHandler(undefined as any)).listen(3000);
         const scene = new Scene(newTrace('test'), {
             database: undefined as any,
             serviceProtocol: new HttpRpcClient(),
@@ -62,12 +60,11 @@ describe('HttpRpcServer', () => {
     });
     it('执行代码抛异常', async () => {
         const rpcServer = new HttpRpcServer({
-            ioProvider: () => {},
             func: () => {
                 throw new Error('wtf');
             },
         } as any);
-        httpServer = http.createServer(rpcServer.handler).listen(3000);
+        httpServer = http.createServer(rpcServer.createHandler(undefined as any)).listen(3000);
         const scene = new Scene(newTrace('test'), {
             database: undefined as any,
             serviceProtocol: new HttpRpcClient(),
@@ -92,12 +89,11 @@ describe('HttpRpcServer', () => {
             return [batch];
         };
         const rpcServer = new HttpRpcServer({
-            ioProvider: () => {},
             func: {
                 batchExecute,
             },
         } as any);
-        httpServer = http.createServer(rpcServer.handler).listen(3000);
+        httpServer = http.createServer(rpcServer.createHandler(undefined as any)).listen(3000);
         const scene = new Scene(newTrace('test'), {
             database: undefined as any,
             serviceProtocol: new HttpRpcClient(),

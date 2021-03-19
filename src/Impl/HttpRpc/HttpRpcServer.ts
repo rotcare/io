@@ -6,12 +6,11 @@ import { JobBatch, Job } from './HttpRpc';
 export class HttpRpcServer {
     constructor(
         private readonly options: {
-            ioProvider: () => IoConf;
             func?: Function;
             funcProvider?: () => Promise<Function>;
         },
     ) {}
-    public get handler() {
+    public createHandler(ioConf: IoConf) {
         return async (req: IncomingMessage, resp: ServerResponse) => {
             let reqBody = '';
             req.on('data', (chunk) => {
@@ -39,7 +38,7 @@ export class HttpRpcServer {
                     }
                 }
                 const span = createSpanFromHeaders(req.headers) || newTrace(`handle ${req.url}`);
-                const promises = batches.map((batch) => this.execute({ batch, span, resp }));
+                const promises = batches.map((batch) => this.execute({ ioConf, batch, span, resp }));
                 await Promise.all(promises);
             } catch (e) {
                 for (let index = 0; index < jobs.length; index++) {
@@ -51,9 +50,9 @@ export class HttpRpcServer {
         };
     }
 
-    private async execute(options: { batch: JobBatch; span: Span; resp: ServerResponse }) {
+    private async execute(options: { ioConf: IoConf, batch: JobBatch; span: Span; resp: ServerResponse }) {
         const { span, resp, batch } = options;
-        const scene = new Scene(span, this.options.ioProvider());
+        const scene = new Scene(span, options.ioConf);
         const read: string[] = [];
         const changed: string[] = [];
         scene.onAtomChanged = (atom) => {
@@ -87,13 +86,11 @@ export class HttpRpcServer {
     }
 
     public static create(
-        ioProvider: () => IoConf,
         moduleProvider: () => Promise<any>,
         className: string,
         staticMethodName: string,
     ) {
         return new HttpRpcServer({
-            ioProvider,
             async funcProvider() {
                 let module: any;
                 try {
