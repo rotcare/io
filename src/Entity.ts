@@ -1,5 +1,5 @@
-import { AtomSubscriber, SimpleAtom, Table } from "../Scene";
-import { Span } from "../tracing";
+import { AtomSubscriber, SimpleAtom, Table } from "./Scene";
+import { Span } from "./tracing";
 
 // 数据库表
 export class Entity {

@@ -2,7 +2,7 @@ import { Scene } from "../Scene";
 import { InMemDatabase } from "./InMemDatabase";
 import { strict } from 'assert';
 import { newTrace } from "../tracing";
-import { Entity } from "../Archetype/Entity";
+import { Entity } from "../Entity";
 
 describe('InMemDatabase', () => {
     it('增删改查', async () => {
