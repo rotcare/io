@@ -98,13 +98,14 @@ export interface Database {
 export interface ServiceProtocol {
     /**
      * @param scene 传递了 trace 信息
-     * @param project 代表了一份源代码构建出来的某个版本运行的 RPC 集群
+     * @param projectName 代表了一份源代码构建出来的某个版本运行的 RPC 集群
+     * @param projectPort 如果不走 router，需要额外指定 port
      * @param service 对应了一个 javascript class 上的静态方法
      * @param args 静态方法调用时的参数
      * @returns 静态方法的返回值
      * @throws 远端静态方法如果有抛异常，也会在本地重新抛出（当然堆栈信息丢失了）
      */
-    callService(scene: Scene, project: string, service: string, args: any[]): Promise<any>;
+    callService(scene: Scene, projectName: string, projectPort: number | undefined, service: string, args: any[]): Promise<any>;
     onSceneFinished(scene: Scene): Promise<void>;
 }
 
@@ -129,8 +130,6 @@ const STATUS_FINISHED = 2;
 // 前端计算每个 future 的值（读操作），捕捉订阅关系
 // 前端处理一次鼠标点击（写操作），触发订阅者
 export class Scene {
-    // 当前进程跑的是哪个 project 的代码，RPC 的时候默认会透传该 project
-    public static currentProject = '';
     // 默认使用 project 名字做为域名进行服务发现，端口在代码写死
     // 如果需要额外重定向，需要全局注册该回调
     // 其他外部服务也可以当成 project 来对待，比如 project=redis, port=6379
@@ -259,8 +258,19 @@ export class Scene {
      * @param project 要调用的目标 project，如果不传默认调用当前 project 对应的后端代码
      * @returns RPC 调用的 proxy
      */
-    public useServices<T>(
-        project?: string,
+    public useServices<T extends { project: any }>(
+        ...project: T['project']
+    ): {
+        [P in MethodsOf<T>]: (...a: Parameters<OmitFirstArg<T[P]>>) => ReturnType<T[P]>;
+    };
+    public useServices<T extends { project: any }>(
+        projectName: T['project'][0]
+    ): {
+        [P in MethodsOf<T>]: (...a: Parameters<OmitFirstArg<T[P]>>) => ReturnType<T[P]>;
+    };
+    public useServices<T extends { project: any }>(
+        arg1: any,
+        arg2?: any
     ): {
         [P in MethodsOf<T>]: (...a: Parameters<OmitFirstArg<T[P]>>) => ReturnType<T[P]>;
     } {
@@ -271,7 +281,8 @@ export class Scene {
             return (...args: any[]) => {
                 return scene.io.serviceProtocol.callService(
                     scene,
-                    project || Scene.currentProject,
+                    arg1,
+                    arg2,
                     propertyKey,
                     args,
                 );
