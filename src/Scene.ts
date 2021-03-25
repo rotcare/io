@@ -133,11 +133,11 @@ export class Scene {
     // 默认使用 project 名字做为域名进行服务发现，端口在代码写死
     // 如果需要额外重定向，需要全局注册该回调
     // 其他外部服务也可以当成 project 来对待，比如 project=redis, port=6379
-    public static serviceDiscover = (options: {
-        project: string;
-        port: number;
-    }): { host: string; port: number } => {
-        return { host: options.project, port: options.port };
+    public static serviceDiscover = (projectName: string, projectPort: number | undefined): { host: string; port: number } => {
+        if (!projectPort) {
+            throw new Error('do not know how to route project ' + projectName);
+        }
+        return { host: projectName, port: projectPort };
     };
     // 默认情况下，scene 是不会触发变更通知的
     // 在创建了 scene 之后，要配置 scene 执行过程中如果发现 atom 被修改了该怎么办
