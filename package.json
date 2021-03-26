@@ -5,7 +5,7 @@
         "type": "git",
         "url": "https://github.com/rotcare/io.git"
     },
-    "main": "index.ts",
+    "main": "src/index.ts",
     "devDependencies": {
         "typescript": "*",
         "ts-eager": "^1.1.3",

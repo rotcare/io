@@ -138,6 +138,22 @@ export interface SpanSpi extends Span {
     onSceneExecuting?: (scene: Scene) => Promise<any>;
 }
 
+export interface SceneConf {
+    service: Service;
+    // 如果 RPC 的时候没有指定 tenant，默认取这里的设置
+    tenants: Record<string, string>;
+    // key 是 serviceName/tenantName
+    // value 是 RPC 传递的 context
+    contexts: Record<string, Record<string, any>>;
+    // 默认情况下，scene 是不会触发变更通知的
+    // 在创建了 scene 之后，要配置 scene 执行过程中如果发现 atom 被修改了该怎么办
+    // 1. 透传给其他 scene（比如通过 RPC 传递）
+    // 2. 触发 atom 变更通知，从而触发 subscriber 刷新
+    // 3. 只读的操作禁止修改数据，应该抛异常
+    // 选择哪种方式要看这个 scene 的创建者所要执行任务的意图
+    onAtomChanged: (atom: Atom) => void;
+}
+
 // STATUS_INIT -> STATUS_EXECUTING -> STATUS_FINISHED
 const STATUS_INIT = 0;
 const STATUS_EXECUTING = 1;
@@ -152,21 +168,14 @@ export class Scene {
     // 如果需要额外重定向，需要全局注册该回调
     // 其他外部服务也可以当成 project 来对待，比如 project=redis, port=6379
     public static serviceDiscover = (
-        projectName: string,
-        projectPort: number | undefined,
+        serviceName: string,
+        servicePort: number,
     ): { host: string; port: number } => {
-        if (!projectPort) {
-            throw new Error('do not know how to route project ' + projectName);
+        if (!servicePort) {
+            throw new Error('do not know how to route service ' + serviceName);
         }
-        return { host: projectName, port: projectPort };
+        return { host: serviceName, port: servicePort };
     };
-    // 默认情况下，scene 是不会触发变更通知的
-    // 在创建了 scene 之后，要配置 scene 执行过程中如果发现 atom 被修改了该怎么办
-    // 1. 透传给其他 scene（比如通过 RPC 传递）
-    // 2. 触发 atom 变更通知，从而触发 subscriber 刷新
-    // 3. 只读的操作禁止修改数据，应该抛异常
-    // 选择哪种方式要看这个 scene 的创建者所要执行任务的意图
-    public onAtomChanged = (atom: Atom) => {};
 
     // 当前正在执行的 reader，遇到的 atom 要订阅上它们
     // 一个 scene 的执行过程中可能执行了多个嵌套的 async function
@@ -174,33 +183,26 @@ export class Scene {
     // 然后在函数执行完毕之后再把 reader 从这里删掉
     private activeReaders?: Set<AtomReader>;
 
-    // RPC 服务
-    private service: Service;
-
-    // 如果 RPC 的时候没有指定 tenant，默认取这里的设置
-    private tenants: Record<string, string>;
-
-    // key 是 serviceName/tenantName
-    // value 是 RPC 传递的 context
-    private contexts: Record<string, Record<string, any>>;
-
     // 用来防止 scene.execute 之外误用 scene
     private status: 0 | 1 | 2 = STATUS_INIT;
 
     // 当前 scene.execute 执行的任务
     public executing?: Promise<any>;
 
-    constructor(
-        public readonly span: SpanSpi,
-        options: {
-            service: Service;
-            tenants?: Record<string, string>;
-            contexts?: Record<string, Record<string, any>>;
-        },
-    ) {
-        this.service = options.service;
-        this.tenants = options.tenants || {};
-        this.contexts = options.contexts || {};
+    public readonly conf: SceneConf;
+
+    constructor(public readonly span: SpanSpi, conf: Partial<SceneConf>) {
+        this.conf = {
+            service: conf.service || {
+                async callMethod() {
+                    throw new Error('not implemented');
+                },
+                async onSceneFinished() {},
+            },
+            tenants: conf.tenants || {},
+            contexts: conf.contexts || {},
+            onAtomChanged: conf.onAtomChanged || (() => {})
+        }
     }
 
     /**
@@ -230,9 +232,9 @@ export class Scene {
                     task.call(theThis, this, ...args),
                 );
             } finally {
-                if (this.service) {
+                if (this.conf.service) {
                     try {
-                        await this.service.onSceneFinished(this);
+                        await this.conf.service.onSceneFinished(this);
                     } catch (e) {
                         reportEvent(
                             'failed to call database.onSceneFinished',
@@ -301,6 +303,10 @@ export class Scene {
         }
     }
 
+    public onAtomChanged(atom: Atom) {
+        return this.conf.onAtomChanged(atom);
+    }
+
     public reportEvent(message: string, event: Record<string, any>) {
         reportEvent(message, event, this.span);
     }
@@ -334,12 +340,12 @@ export class Scene {
         // proxy intercept property get, returns rpc stub
         const get = (target: object, propertyKey: string, receiver?: any) => {
             return (...args: any[]) => {
-                const tenantName = overridingTenantName || this.tenants[serviceName];
+                const tenantName = overridingTenantName || this.conf.tenants[serviceName];
                 if (!tenantName) {
                     throw new Error('target tenantName is unknown');
                 }
-                const context = overridingContext || this.contexts[`${serviceName}/${tenantName}`];
-                return scene.service.callMethod(scene, {
+                const context = overridingContext || this.conf.contexts[`${serviceName}/${tenantName}`];
+                return scene.conf.service.callMethod(scene, {
                     serviceName,
                     servicePort,
                     tenantName,
