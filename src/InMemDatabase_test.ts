@@ -3,6 +3,7 @@ import { InMemDatabase } from "./InMemDatabase";
 import { strict } from 'assert';
 import { newTrace } from "./tracing";
 import { Entity } from "./Entity";
+import { ServiceDispatcher } from "./ServiceDispatcher";
 
 describe('InMemDatabase', () => {
     it('增删改查', async () => {
@@ -11,23 +12,23 @@ describe('InMemDatabase', () => {
             name: string;
             price?: number;
             public static async createProduct(scene: Scene, props: Partial<Product>) {
-                return await scene.io.database.insert(scene, Product, props);
+                return await scene.useDatabase().insert(Product, props);
             }
             public static async queryProduct(scene: Scene, props: Partial<Product>) {
-                return await scene.io.database.query(scene, Product, props);
+                return await scene.useDatabase().query(Product, props);
             }
             public async updatePrice(scene: Scene, newPrice: number) {
                 this.price = newPrice;
-                await scene.io.database.update(scene, this.table, this);
+                await scene.useDatabase().update(this.table, this);
             }
             public async deleteMe(scene: Scene) {
-                await scene.io.database.delete(scene, this.table, this);
+                await scene.useDatabase().delete(this.table, this);
             }
         }
         const database = new InMemDatabase();
         const scene = new Scene(newTrace('test'), {
-            database,
-            serviceProtocol: undefined as any
+            tenants: { db: 'default' },
+            service: new ServiceDispatcher(database, undefined as any),
         });
         await scene.execute(undefined, async() => {
             const apple = await scene.create(Product, { name: 'apple' });

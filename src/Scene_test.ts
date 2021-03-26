@@ -3,6 +3,7 @@ import { newTrace } from './tracing';
 import { Atom, AtomReader, Scene, SimpleAtom } from './Scene';
 
 class SomeGateway {
+    public static project = ['SomeGateway', 8080] as const;
     public static doSomething() {}
 }
 describe('Scene', () => {
@@ -10,9 +11,9 @@ describe('Scene', () => {
         const someTable = new SimpleAtom();
         // 1. 先构造一个 scene 对象
         const scene = new Scene(newTrace('test'), {
-            database: undefined as any,
-            serviceProtocol: {
-                async callService() {
+            tenants: { SomeGateway: 'default' },
+            service: {
+                async callMethod() {
                     // 5. 告诉当前的 readers，你读到了这张表了
                     scene.onAtomRead(someTable);
                 },
@@ -40,7 +41,7 @@ describe('Scene', () => {
         async function anotherAsyncFunction(scene: Scene) {
             // 4. 只要是通过 scene 做的操作，无论传了几层，传给了哪个函数
             // 其产生的 I/O 都会触发 onAtomRead
-            return await scene.useServices<typeof SomeGateway>().doSomething();
+            return await scene.useService<typeof SomeGateway>('SomeGateway', 0).doSomething();
         }
         strict.deepEqual(atoms, [someTable]);
     });

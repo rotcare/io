@@ -63,7 +63,7 @@ export class SimpleAtom {
 
 // Entity class 就实现了 Table 接口
 export interface Table<T = any> extends Atom {
-    new (): T,
+    new (): T;
     tableName: string;
     create(props: Partial<T>): object;
 }
@@ -94,25 +94,43 @@ export interface Database {
     onSceneFinished(scene: Scene): Promise<void>;
 }
 
-// 提供远程方法调用的具体实现
-export interface ServiceProtocol {
+export interface ServiceRequest {
     /**
-     * @param scene 传递了 trace 信息
-     * @param projectName 代表了一份源代码构建出来的某个版本运行的 RPC 集群
-     * @param projectPort 如果不走 router，需要额外指定 port
-     * @param service 对应了一个 javascript class 上的静态方法
-     * @param args 静态方法调用时的参数
-     * @returns 静态方法的返回值
-     * @throws 远端静态方法如果有抛异常，也会在本地重新抛出（当然堆栈信息丢失了）
+     * 服务名
      */
-    callService(scene: Scene, projectName: string, projectPort: number | undefined, service: string, args: any[]): Promise<any>;
-    onSceneFinished(scene: Scene): Promise<void>;
+    serviceName: string;
+    /**
+     * 服务的 tcp 端口
+     */
+    servicePort: number;
+    /**
+     * 租户名
+     */
+    tenantName: string;
+    /**
+     * token等上下文参数
+     */
+    context: Record<string, any>;
+    /**
+     * RPC 方法
+     */
+    methodName: string;
+    /**
+     * RPC 参数
+     */
+    args: any[];
 }
 
-// 输入输出的全部配置，不应该超出这个接口去访问其他的外设
-export interface IoConf {
-    serviceProtocol: ServiceProtocol;
-    database: Database;
+// 提供远程方法调用的具体实现
+export interface Service {
+    /**
+     * @param scene 传递了 trace 信息
+     * @param request RPC 请求
+     * @returns RPC 返回值
+     * @throws 远端如果有抛异常，也会在本地重新抛出（当然堆栈信息丢失了）
+     */
+    callMethod(scene: Scene, request: ServiceRequest): Promise<any>;
+    onSceneFinished(scene: Scene): Promise<void>;
 }
 
 export interface SpanSpi extends Span {
@@ -133,7 +151,10 @@ export class Scene {
     // 默认使用 project 名字做为域名进行服务发现，端口在代码写死
     // 如果需要额外重定向，需要全局注册该回调
     // 其他外部服务也可以当成 project 来对待，比如 project=redis, port=6379
-    public static serviceDiscover = (projectName: string, projectPort: number | undefined): { host: string; port: number } => {
+    public static serviceDiscover = (
+        projectName: string,
+        projectPort: number | undefined,
+    ): { host: string; port: number } => {
         if (!projectPort) {
             throw new Error('do not know how to route project ' + projectName);
         }
@@ -151,7 +172,17 @@ export class Scene {
     // 一个 scene 的执行过程中可能执行了多个嵌套的 async function
     // 每个 async function 都可能会在开始执行的时候把自己的 reader 加入进来
     // 然后在函数执行完毕之后再把 reader 从这里删掉
-    private readonly activeReaders = new Set<AtomReader>();
+    private activeReaders?: Set<AtomReader>;
+
+    // RPC 服务
+    private service: Service;
+
+    // 如果 RPC 的时候没有指定 tenant，默认取这里的设置
+    private tenants: Record<string, string>;
+
+    // key 是 serviceName/tenantName
+    // value 是 RPC 传递的 context
+    private contexts: Record<string, Record<string, any>>;
 
     // 用来防止 scene.execute 之外误用 scene
     private status: 0 | 1 | 2 = STATUS_INIT;
@@ -159,7 +190,18 @@ export class Scene {
     // 当前 scene.execute 执行的任务
     public executing?: Promise<any>;
 
-    constructor(public readonly span: SpanSpi, public readonly io: IoConf) {}
+    constructor(
+        public readonly span: SpanSpi,
+        options: {
+            service: Service;
+            tenants?: Record<string, string>;
+            contexts?: Record<string, Record<string, any>>;
+        },
+    ) {
+        this.service = options.service;
+        this.tenants = options.tenants || {};
+        this.contexts = options.contexts || {};
+    }
 
     /**
      * @param theThis 执行 task 函数时传递的 this 参数
@@ -176,6 +218,9 @@ export class Scene {
             this.status = STATUS_EXECUTING;
             const isReader = theThis && theThis.onAtomRead;
             if (isReader) {
+                if (!this.activeReaders) {
+                    this.activeReaders = new Set();
+                }
                 this.activeReaders.add(theThis);
             }
             try {
@@ -185,25 +230,26 @@ export class Scene {
                     task.call(theThis, this, ...args),
                 );
             } finally {
-                if (this.io?.database) {
+                if (this.service) {
                     try {
-                        await this.io.database.onSceneFinished(this);
-                    } catch(e) {
-                        reportEvent('failed to call database.onSceneFinished', { error: e }, this.span);
+                        await this.service.onSceneFinished(this);
+                    } catch (e) {
+                        reportEvent(
+                            'failed to call database.onSceneFinished',
+                            { error: e },
+                            this.span,
+                        );
                     }
                 }
-                if (this.io?.serviceProtocol) {
-                    try {
-                        await this.io.serviceProtocol.onSceneFinished(this);
-                    } catch(e) {
-                        reportEvent('failed to call serviceProtocol.onSceneFinished', { error: e }, this.span);
-                    }
-                }
-                if (isReader) {
+                if (isReader && this.activeReaders) {
                     this.activeReaders.delete(theThis);
                 }
-                if (this.activeReaders.size > 0) {
-                    reportEvent('detected activeReaders not empty after scene finished', {}, this.span);
+                if (this.activeReaders && this.activeReaders.size > 0) {
+                    reportEvent(
+                        'detected activeReaders not empty after scene finished',
+                        {},
+                        this.span,
+                    );
                 }
                 // 无论是否抛出异常，执行都算结束了
                 // 即便要重试，也应该创建一个新的 scene
@@ -214,7 +260,7 @@ export class Scene {
         // span 的其他 scene 可能希望等该 span 的所有 scene 都执行完毕再干点事情
         // 把执行的 scene 通知出来，让关心的地方可以知道有多少异步 scene 正在执行
         if (this.span.onSceneExecuting) {
-            this.span.onSceneExecuting(this);
+            this.span.onSceneExecuting!(this);
         }
         return this.executing as any;
     }
@@ -234,6 +280,9 @@ export class Scene {
 
     // 把自己注册到 scene 上以获得 onAtomRead 的回调
     public async trackAtomRead<T>(reader: AtomReader, cb: () => Promise<T>): Promise<T> {
+        if (!this.activeReaders) {
+            this.activeReaders = new Set();
+        }
         this.activeReaders.add(reader);
         try {
             return await cb();
@@ -245,8 +294,10 @@ export class Scene {
     // 给 Database, ServiceProtocol 的实现来通知 scene 自己 I/O 读了哪些表
     public onAtomRead(atom: Atom) {
         this.assertExecuting();
-        for (const reader of this.activeReaders) {
-            reader.onAtomRead(atom);
+        if (this.activeReaders) {
+            for (const reader of this.activeReaders) {
+                reader.onAtomRead(atom);
+            }
         }
     }
 
@@ -258,19 +309,23 @@ export class Scene {
      * @param project 要调用的目标 project，如果不传默认调用当前 project 对应的后端代码
      * @returns RPC 调用的 proxy
      */
-    public useServices<T extends { project: any }>(
+    public useService<T extends { project: any }>(
         ...project: T['project']
     ): {
         [P in MethodsOf<T>]: (...a: Parameters<OmitFirstArg<T[P]>>) => ReturnType<T[P]>;
     };
-    public useServices<T extends { project: any }>(
-        projectName: T['project'][0]
+    public useService<T extends { project: any }>(
+        serviceName: T['project'][0],
+        servicePort: 0,
+        tenantName?: string,
     ): {
         [P in MethodsOf<T>]: (...a: Parameters<OmitFirstArg<T[P]>>) => ReturnType<T[P]>;
     };
-    public useServices<T extends { project: any }>(
-        arg1: any,
-        arg2?: any
+    public useService<T extends { project: any }>(
+        serviceName: string,
+        servicePort: number,
+        overridingTenantName?: string,
+        overridingContext?: Record<string, any>,
     ): {
         [P in MethodsOf<T>]: (...a: Parameters<OmitFirstArg<T[P]>>) => ReturnType<T[P]>;
     } {
@@ -279,16 +334,26 @@ export class Scene {
         // proxy intercept property get, returns rpc stub
         const get = (target: object, propertyKey: string, receiver?: any) => {
             return (...args: any[]) => {
-                return scene.io.serviceProtocol.callService(
-                    scene,
-                    arg1,
-                    arg2,
-                    propertyKey,
+                const tenantName = overridingTenantName || this.tenants[serviceName];
+                if (!tenantName) {
+                    throw new Error('target tenantName is unknown');
+                }
+                const context = overridingContext || this.contexts[`${serviceName}/${tenantName}`];
+                return scene.service.callMethod(scene, {
+                    serviceName,
+                    servicePort,
+                    tenantName,
+                    context,
+                    methodName: propertyKey,
                     args,
-                );
+                });
             };
         };
         return new Proxy({}, { get }) as any;
+    }
+
+    public useDatabase() {
+        return this.useService<Database & { project: ['db', 0] }>('db', 0);
     }
 
     /**
