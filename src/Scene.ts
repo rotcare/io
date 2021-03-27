@@ -151,7 +151,7 @@ export interface SceneConf {
     // 2. 触发 atom 变更通知，从而触发 subscriber 刷新
     // 3. 只读的操作禁止修改数据，应该抛异常
     // 选择哪种方式要看这个 scene 的创建者所要执行任务的意图
-    onAtomChanged: (atom: Atom) => void;
+    onAtomChanged: (scene: Scene, atom: Atom) => void;
 }
 
 // STATUS_INIT -> STATUS_EXECUTING -> STATUS_FINISHED
@@ -304,7 +304,7 @@ export class Scene {
     }
 
     public onAtomChanged(atom: Atom) {
-        return this.conf.onAtomChanged(atom);
+        return this.conf.onAtomChanged(this, atom);
     }
 
     public reportEvent(message: string, event: Record<string, any>) {
